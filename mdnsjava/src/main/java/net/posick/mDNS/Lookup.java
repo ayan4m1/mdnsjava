@@ -27,30 +27,34 @@ import org.xbill.DNS.Type;
 public class Lookup extends MulticastDNSLookupBase {
 
   public static class Domain {
-
     private final Name name;
-
-    private boolean isDefault;
-
-    private boolean isLegacy;
-
+    private final boolean isDefault;
+    private final boolean isLegacy;
 
     protected Domain(final Name name) {
       this.name = name;
 
       byte[] label = name.getLabel(0);
-      if (label != null) {
-        switch ((char) label[0]) {
-          case 'd':
-            isDefault = true;
-            break;
-          case 'l':
-            isLegacy = true;
-            break;
-        }
-      }
+      isDefault = (char)label[0] == 'd';
+      isLegacy = (char)label[0] == 'l';
     }
 
+    public Name getName() {
+      return name;
+    }
+
+    public boolean isDefault() {
+      return isDefault;
+    }
+
+    public boolean isLegacy() {
+      return isLegacy;
+    }
+
+    @Override
+    public int hashCode() {
+      return name.hashCode();
+    }
 
     @Override
     public boolean equals(final Object obj) {
@@ -65,28 +69,6 @@ public class Lookup extends MulticastDNSLookupBase {
       return false;
     }
 
-
-    public Name getName() {
-      return name;
-    }
-
-
-    @Override
-    public int hashCode() {
-      return name.hashCode();
-    }
-
-
-    public boolean isDefault() {
-      return isDefault;
-    }
-
-
-    public boolean isLegacy() {
-      return isLegacy;
-    }
-
-
     @Override
     public String toString() {
       return name + (isDefault ? "  [default]" : "") + (isLegacy ? "  [legacy]" : "");
@@ -94,98 +76,69 @@ public class Lookup extends MulticastDNSLookupBase {
   }
 
 
-  public static interface RecordListener {
+  public interface RecordListener {
 
-    public void handleException(Object id, Exception e);
+    void handleException(Object id, Exception e);
 
-
-    public void receiveRecord(Object id, Record record);
+    void receiveRecord(Object id, Record record);
   }
 
-
-  public Lookup(final Name... names)
-      throws IOException {
+  public Lookup(final Name... names) throws IOException {
     super(names);
   }
 
-
-  public Lookup(final Name[] names, final int type)
-      throws IOException {
+  public Lookup(final List<Name> names, final int type) throws IOException {
     super(names, type);
   }
 
-
-  public Lookup(final Name name, final int type)
-      throws IOException {
-    super(new Name[]{name}, type);
+  public Lookup(final Name name, final int type) throws IOException {
+    super(Collections.singletonList(name), type);
   }
 
-
-  public Lookup(final Name[] names, final int type, final int dclass)
-      throws IOException {
+  public Lookup(final List<Name> names, final int type, final int dclass) throws IOException {
     super(names, type, dclass);
   }
 
-
-  public Lookup(final Name name, final int type, final int dclass)
-      throws IOException {
-    super(new Name[]{name}, type, dclass);
+  public Lookup(final Name name, final int type, final int dclass) throws IOException {
+    super(Collections.singletonList(name), type, dclass);
   }
 
-
-  public Lookup(final String... names)
-      throws IOException {
+  public Lookup(final String... names) throws IOException {
     super(names);
   }
 
-
-  public Lookup(final String name, final int type)
-      throws IOException {
+  public Lookup(final String name, final int type) throws IOException {
     super(name, type);
   }
 
-
-  public Lookup(final String name, final int type, final int dclass)
-      throws IOException {
+  public Lookup(final String name, final int type, final int dclass) throws IOException {
     super(name, type, dclass);
   }
 
-
-  public Lookup(final String[] names, final int type)
-      throws IOException {
+  public Lookup(final String[] names, final int type) throws IOException {
     super(names, type);
   }
 
-
-  public Lookup(final String[] names, final int type, final int dclass)
-      throws IOException {
+  public Lookup(final String[] names, final int type, final int dclass) throws IOException {
     super(names, type, dclass);
   }
 
-
-  protected Lookup()
-      throws IOException {
+  protected Lookup() throws IOException {
     super();
   }
 
-
-  protected Lookup(final Message message)
-      throws IOException {
+  protected Lookup(final Message message) throws IOException {
     super(message);
   }
 
-
-  public void close()
-      throws IOException {
+  public void close() throws IOException {
   }
 
+  public Domain[] lookupDomains() throws IOException {
+    final Set<Domain> domains = Collections.synchronizedSet(new HashSet());
+    final List<Exception> exceptions = Collections.synchronizedList(new LinkedList());
 
-  public Domain[] lookupDomains()
-      throws IOException {
-    final Set domains = Collections.synchronizedSet(new HashSet());
-    final List exceptions = Collections.synchronizedList(new LinkedList());
-
-    if ((queries != null) && (queries.length > 0)) {
+    if ((queries != null) && (queries.size() > 0)) {
       lookupRecordsAsync(new RecordListener() {
         public void handleException(final Object id, final Exception e) {
           exceptions.add(e);
@@ -218,20 +171,17 @@ public class Lookup extends MulticastDNSLookupBase {
       domains.add(new Domain(name));
     }
 
-    return (Domain[]) domains.toArray(new Domain[domains.size()]);
+    return domains.toArray(new Domain[domains.size()]);
   }
 
-
-  public Record[] lookupRecords()
-      throws IOException {
-    final Queue messages = new ConcurrentLinkedQueue();
-    final Queue exceptions = new ConcurrentLinkedQueue();
+  public Record[] lookupRecords() throws IOException {
+    final Queue<Message> messages = new ConcurrentLinkedQueue();
+    final Queue<Exception> exceptions = new ConcurrentLinkedQueue();
 
     lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         exceptions.add(e);
       }
-
 
       public void receiveMessage(final Object id, final Message m) {
         messages.add(m);
@@ -240,10 +190,9 @@ public class Lookup extends MulticastDNSLookupBase {
 
     Wait.forResponse(messages);
 
-    List records = new ArrayList();
+    List<Record> records = new ArrayList();
 
-    for (Object o : messages) {
-      Message m = (Message) o;
+    for (Message m : messages) {
       switch (m.getRcode()) {
         case Rcode.NOERROR:
           records.addAll(Arrays.asList(MulticastDNSUtils
@@ -254,17 +203,14 @@ public class Lookup extends MulticastDNSLookupBase {
       }
     }
 
-    return (Record[]) records.toArray(new Record[records.size()]);
+    return records.toArray(new Record[records.size()]);
   }
 
-
-  public Object[] lookupRecordsAsync(final RecordListener listener)
-      throws IOException {
-    return lookupRecordsAsync(new ResolverListener() {
+  public void lookupRecordsAsync(final RecordListener listener) throws IOException {
+    lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         listener.handleException(id, e);
       }
-
 
       public void receiveMessage(final Object id, final Message m) {
         Record[] records = MulticastDNSUtils
@@ -276,103 +222,67 @@ public class Lookup extends MulticastDNSLookupBase {
     });
   }
 
-
-  public Object[] lookupRecordsAsync(final ResolverListener listener)
-      throws IOException {
-    List<Object> results = new ArrayList<Object>(queries.length);
+  public void lookupRecordsAsync(final ResolverListener listener) throws IOException {
     for (Message query : queries) {
       getQuerier().sendAsync(query, listener);
     }
-    return results.toArray();
   }
 
-
-  public ServiceInstance[] lookupServices()
-      throws IOException {
+  public ServiceInstance[] lookupServices() throws IOException {
     final List results = new ArrayList();
     results.addAll(Arrays.asList(extractServiceInstances(lookupRecords())));
     return (ServiceInstance[]) results.toArray(new ServiceInstance[results.size()]);
   }
 
-
-  public static Record[] lookupRecords(Name name)
-      throws IOException {
-    return lookupRecords(new Name[]{name}, Type.ANY, DClass.ANY);
+  public static Record[] lookupRecords(Name name) throws IOException {
+    return lookupRecords(Collections.singletonList(name), Type.ANY, DClass.ANY);
   }
 
-
-  public static Record[] lookupRecords(Name[] names)
-      throws IOException {
+  public static Record[] lookupRecords(List<Name> names) throws IOException {
     return lookupRecords(names, Type.ANY, DClass.ANY);
   }
 
-
-  public static Record[] lookupRecords(Name name, int type)
-      throws IOException {
-    return lookupRecords(new Name[]{name}, type, DClass.ANY);
+  public static Record[] lookupRecords(Name name, int type) throws IOException {
+    return lookupRecords(Collections.singletonList(name), type, DClass.ANY);
   }
 
-
-  public static Record[] lookupRecords(Name[] names, int type)
-      throws IOException {
+  public static Record[] lookupRecords(List<Name> names, int type) throws IOException {
     return lookupRecords(names, type, DClass.ANY);
   }
 
-
-  public static Record[] lookupRecords(Name name, int type, int dclass)
-      throws IOException {
-    return lookupRecords(new Name[]{name}, type, dclass);
+  public static Record[] lookupRecords(Name name, int type, int dclass) throws IOException {
+    return lookupRecords(Collections.singletonList(name), type, dclass);
   }
 
-
-  public static Record[] lookupRecords(Name[] names, int type, int dclass)
-      throws IOException {
-    Lookup lookup = new Lookup(names, type, dclass);
-    try {
+  public static Record[] lookupRecords(List<Name> names, int type, int dclass) throws IOException {
+    try (Lookup lookup = new Lookup(names, type, dclass)) {
       return lookup.lookupRecords();
-    } finally {
-      lookup.close();
     }
   }
 
-
-  public static ServiceInstance[] lookupServices(Name name)
-      throws IOException {
-    return lookupServices(new Name[]{name}, Type.ANY, DClass.ANY);
+  public static ServiceInstance[] lookupServices(Name name) throws IOException {
+    return lookupServices(Collections.singletonList(name), Type.ANY, DClass.ANY);
   }
 
-
-  public static ServiceInstance[] lookupServices(Name[] names)
-      throws IOException {
+  public static ServiceInstance[] lookupServices(List<Name> names) throws IOException {
     return lookupServices(names, Type.ANY, DClass.ANY);
   }
 
-
-  public static ServiceInstance[] lookupServices(Name name, int type)
-      throws IOException {
-    return lookupServices(new Name[]{name}, type, DClass.ANY);
+  public static ServiceInstance[] lookupServices(Name name, int type) throws IOException {
+    return lookupServices(Collections.singletonList(name), type, DClass.ANY);
   }
 
-
-  public static ServiceInstance[] lookupServices(Name[] names, int type)
-      throws IOException {
+  public static ServiceInstance[] lookupServices(List<Name> names, int type) throws IOException {
     return lookupServices(names, type, DClass.ANY);
   }
 
-
-  public static ServiceInstance[] lookupServices(Name name, int type, int dclass)
-      throws IOException {
-    return lookupServices(new Name[]{name}, type, dclass);
+  public static ServiceInstance[] lookupServices(Name name, int type, int dclass) throws IOException {
+    return lookupServices(Collections.singletonList(name), type, dclass);
   }
 
-
-  public static ServiceInstance[] lookupServices(Name[] names, int type, int dclass)
-      throws IOException {
-    Lookup lookup = new Lookup(names, type, dclass);
-    try {
+  public static ServiceInstance[] lookupServices(List<Name> names, int type, int dclass) throws IOException {
+    try (Lookup lookup = new Lookup(names, type, dclass)) {
       return lookup.lookupServices();
-    } finally {
-      lookup.close();
     }
   }
 }

@@ -486,7 +486,7 @@ public class MulticastDNSQuerier implements Querier {
   /**
    * {@inheritDoc}
    */
-  public Name[] getMulticastDomains() {
+  public List<Name> getMulticastDomains() {
     if (ipv4 && ipv6) {
       return Constants.ALL_MULTICAST_DNS_DOMAINS;
     } else if (ipv4) {
@@ -494,7 +494,7 @@ public class MulticastDNSQuerier implements Querier {
     } else if (ipv6) {
       return Constants.IPv6_MULTICAST_DOMAINS;
     } else {
-      return new Name[0];
+      return new ArrayList<>();
     }
   }
 

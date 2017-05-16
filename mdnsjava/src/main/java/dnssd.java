@@ -2,6 +2,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
@@ -330,7 +333,7 @@ public class dnssd {
                 throw new IllegalArgumentException("Invalid DClass \"" + args[3] + "\" specified.");
               }
               ExecutionTimer._start();
-              lookup = new Lookup(new Name[]{new Name(args[1])}, type, dclass);
+              lookup = new Lookup(Collections.singletonList(new Name(args[1])), type, dclass);
               try {
                 records = lookup.lookupRecords();
                 System.out.println(
@@ -364,11 +367,11 @@ public class dnssd {
               }
 
               Name name = new Name(args[1]);
-              Name[] names;
+              List<Name> names;
               if (!name.isAbsolute() && name.labels() > 1) {
-                names = new Name[]{name, new Name(args[1] + ".")};
+                names = Arrays.asList(name, new Name(args[1] + "."));
               } else {
-                names = new Name[]{name};
+                names = Collections.singletonList(name);
               }
               lookup = new Lookup(names, type, dclass);
               try {
@@ -378,7 +381,7 @@ public class dnssd {
               }
 
               System.out.println("Lookup Names:");
-              dnssd.printArray(lookup.getNames(), "\t%s\n");
+              System.out.println(lookup.getNames());
               System.out.println();
               System.out.println("Resource Records Found:");
               dnssd.printArray(records, "\t%s\n");

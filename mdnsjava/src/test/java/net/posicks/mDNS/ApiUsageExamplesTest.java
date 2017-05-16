@@ -4,6 +4,7 @@ import static org.junit.Assert.fail;
 
 import java.net.InetAddress;
 import net.posick.mDNS.Browse;
+import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
 import net.posick.mDNS.Lookup;
 import net.posick.mDNS.Lookup.RecordListener;
@@ -39,10 +40,9 @@ public class ApiUsageExamplesTest {
   @Test
   public void Lookup_the_registered_Browse_and_Registration_Domains()
       throws Exception {
-    Lookup lookup = new Lookup(MulticastDNSService.DEFAULT_REGISTRATION_DOMAIN_NAME,
-        MulticastDNSService.REGISTRATION_DOMAIN_NAME,
-        MulticastDNSService.DEFAULT_BROWSE_DOMAIN_NAME, MulticastDNSService.BROWSE_DOMAIN_NAME,
-        MulticastDNSService.LEGACY_BROWSE_DOMAIN_NAME);
+    Lookup lookup = new Lookup(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
+        Constants.REGISTRATION_DOMAIN_NAME, Constants.DEFAULT_BROWSE_DOMAIN_NAME,
+        Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
 
     Lookup.Domain[] domains = lookup.lookupDomains();
     for (Lookup.Domain domain : domains) {

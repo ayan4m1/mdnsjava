@@ -18,7 +18,6 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
       Options.check("mdns_network_verbose") || Options.check("network_verbose") || Options
           .check("mdns_verbose") || Options.check("dns_verbose") || Options.check("verbose"));
 
-
   protected static class PacketRunner implements Runnable {
 
     private static long lastPacket = -1;
@@ -27,7 +26,6 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
 
     private final Packet[] packets;
 
-
     protected PacketRunner(final PacketListener dispatcher, final Packet... packets) {
       this.dispatcher = dispatcher;
       this.packets = packets;
@@ -35,7 +33,6 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
         lastPacket = System.currentTimeMillis();
       }
     }
-
 
     public void run() {
       logger.logp(Level.FINE, getClass().getName(), "run",
@@ -98,8 +95,7 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
 
 
   public NetworkProcessor(final InetAddress ifaceAddress, final InetAddress address, final int port,
-      final PacketListener listener)
-      throws IOException {
+      final PacketListener listener) throws IOException {
     threadMonitoring = Options.check("mdns_network_thread_monitor");
 
     setInterfaceAddress(ifaceAddress);
@@ -116,59 +112,46 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
     this.listener = listener;
   }
 
-
-  public void close()
-      throws IOException {
+  public void close() throws IOException {
     if (threadMonitoringFuture != null) {
       threadMonitoringFuture.cancel(true);
     }
     exit = true;
   }
 
-
   public InetAddress getAddress() {
     return address;
   }
-
 
   public InetAddress getInterfaceAddress() {
     return ifaceAddress;
   }
 
-
   public int getMTU() {
     return mtu;
   }
-
 
   public int getPort() {
     return port;
   }
 
-
   public boolean isIPv4() {
     return !ipv6;
   }
-
 
   public boolean isIPv6() {
     return ipv6;
   }
 
-
   public boolean isOperational() {
     return !exit && executors.isNetworkExecutorOperational();
   }
 
-
-  public abstract void send(byte[] data)
-      throws IOException;
-
+  public abstract void send(byte[] data) throws IOException;
 
   public void setInterfaceAddress(final InetAddress address) {
     ifaceAddress = address;
   }
-
 
   public void setPort(final int port) {
     this.port = port;

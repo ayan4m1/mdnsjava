@@ -5,12 +5,14 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import net.posick.mDNS.utils.Misc;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
@@ -30,91 +32,89 @@ import org.xbill.DNS.TextParseException;
 import org.xbill.DNS.Type;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
-public abstract class MulticastDNSLookupBase implements Closeable, Constants {
+public abstract class MulticastDNSLookupBase implements Closeable {
 
   protected static final Logger logger = Misc.getLogger(MulticastDNSLookupBase.class.getName(),
       Options.check("mdns_verbose") || Options.check("verbose"));
 
   protected static Querier defaultQuerier;
 
-  protected static Name[] defaultSearchPath;
+  protected static List<Name> defaultSearchPath;
 
 
-  protected static final Comparator SERVICE_RECORD_SORTER = new Comparator() {
-    public int compare(final Object o1, final Object o2) {
-      if (o1 instanceof Record) {
-        if (o2 instanceof Record) {
-          final Record thisRecord = (Record) o1;
-          final Record thatRecord = (Record) o2;
+  protected static final Comparator SERVICE_RECORD_SORTER = (o1, o2) -> {
+    if (o1 instanceof Record) {
+      if (o2 instanceof Record) {
+        final Record thisRecord = (Record) o1;
+        final Record thatRecord = (Record) o2;
 
-          final int thisType = thisRecord.getType();
-          final int thatType = thatRecord.getType();
+        final int thisType = thisRecord.getType();
+        final int thatType = thatRecord.getType();
 
-          switch (thisType) {
-            case Type.SRV:
-              return thatType == Type.SRV ? 0 : -1;
-            case Type.PTR:
-              switch (thatType) {
-                case Type.SRV:
-                  return +1;
-                case Type.PTR:
-                  return 0;
-                default:
-                  return -1;
-              }
-            case Type.TXT:
-              switch (thatType) {
-                case Type.PTR:
-                case Type.SRV:
-                  return +1;
-                case Type.TXT:
-                  return 0;
-                default:
-                  return -1;
-              }
-            case Type.A:
-            case Type.AAAA:
-              switch (thatType) {
-                case Type.PTR:
-                case Type.SRV:
-                case Type.TXT:
-                  return +1;
-                case Type.A:
-                case Type.AAAA:
-                  return 0;
-                default:
-                  return -1;
-              }
-            case Type.NSEC:
-              switch (thatType) {
-                case Type.PTR:
-                case Type.SRV:
-                case Type.TXT:
-                case Type.A:
-                case Type.AAAA:
-                  return +1;
-                case Type.NSEC:
-                  return 0;
-                default:
-                  return -1;
-              }
-            default:
-              return -1;
+        switch (thisType) {
+          case Type.SRV:
+            return thatType == Type.SRV ? 0 : -1;
+          case Type.PTR:
+            switch (thatType) {
+              case Type.SRV:
+                return +1;
+              case Type.PTR:
+                return 0;
+              default:
+                return -1;
+            }
+          case Type.TXT:
+            switch (thatType) {
+              case Type.PTR:
+              case Type.SRV:
+                return +1;
+              case Type.TXT:
+                return 0;
+              default:
+                return -1;
+            }
+          case Type.A:
+          case Type.AAAA:
+            switch (thatType) {
+              case Type.PTR:
+              case Type.SRV:
+              case Type.TXT:
+                return +1;
+              case Type.A:
+              case Type.AAAA:
+                return 0;
+              default:
+                return -1;
+            }
+          case Type.NSEC:
+            switch (thatType) {
+              case Type.PTR:
+              case Type.SRV:
+              case Type.TXT:
+              case Type.A:
+              case Type.AAAA:
+                return +1;
+              case Type.NSEC:
+                return 0;
+              default:
+                return -1;
+            }
+          default:
+            return -1;
 
-          }
         }
       }
-
-      return -1;
     }
+
+    return -1;
   };
 
 
-  protected Name[] names;
+  protected List<Name> names;
 
   protected Querier querier;
 
-  protected Name[] searchPath;
+  protected List<Name> searchPath;
 
   protected int type = Type.ANY;
 
@@ -122,22 +122,22 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
 
   protected int dclass = DClass.ANY;
 
-  protected Message[] queries;
+  protected List<Message> queries;
 
 
   public MulticastDNSLookupBase(final Name... names)
       throws IOException {
-    this(names, Type.ANY, DClass.ANY);
+    this(Arrays.asList(names), Type.ANY, DClass.ANY);
   }
 
 
-  public MulticastDNSLookupBase(final Name[] names, final int type)
+  public MulticastDNSLookupBase(final List<Name> names, final int type)
       throws IOException {
     this(names, type, DClass.ANY);
   }
 
 
-  public MulticastDNSLookupBase(final Name[] names, final int type, final int dclass)
+  public MulticastDNSLookupBase(final List<Name> names, final int type, final int dclass)
       throws IOException {
     this();
 
@@ -189,13 +189,13 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
             }
           }
         } else {
-          for (int i = 0; i < searchPath.length; i++) {
+          for (Name path : searchPath) {
             try {
-              domainNames.add(new Name(names[index] + "." + searchPath[i]));
+              domainNames.add(new Name(names[index] + "." + path));
             } catch (TextParseException e) {
               if (logger.isLoggable(Level.FINE)) {
                 logger.log(Level.FINE,
-                    "Error parsing \"" + (names[index] + "." + searchPath[i]) + "\" - " + e
+                    "Error parsing \"" + (names[index] + "." + path) + "\" - " + e
                         .getMessage(), e);
               }
             }
@@ -203,7 +203,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
         }
       }
 
-      this.names = (Name[]) domainNames.toArray(new Name[domainNames.size()]);
+      this.names = new ArrayList<>(domainNames);
       this.type = type;
       this.dclass = dclass;
       buildQueries();
@@ -222,10 +222,9 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
   }
 
 
-  protected MulticastDNSLookupBase(final Message message)
-      throws IOException {
+  protected MulticastDNSLookupBase(final Message message) throws IOException {
     this();
-    queries = new Message[]{(Message) message.clone()};
+    queries = Collections.singletonList((Message) message.clone());
 
     int type = -1;
     int dclass = -1;
@@ -243,7 +242,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
     if (list.size() > 0) {
       this.type = type;
       this.dclass = dclass;
-      names = (Name[]) list.toArray(new Record[list.size()]);
+      names = new ArrayList<>(list);
     }
   }
 
@@ -253,75 +252,28 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
    *
    * @param names Names to add
    */
-  public void addNames(final Name[] names) {
-    if ((names != null) && (names.length > 0)) {
-      Name[] temp = this.names;
-      Name[] newNames = new Name[temp.length + names.length];
-      System.arraycopy(temp, 0, newNames, 0, temp.length);
-      System.arraycopy(temp, temp.length, newNames, temp.length, names.length);
-      this.names = newNames;
+  public void addNames(final List<Name> names) {
+    if ((names != null) && (names.size() > 0)) {
+      this.names.addAll(names);
       buildQueries();
     }
   }
-
-
-  /**
-   * Adds the name to the list of names to browse
-   *
-   * @param names Names to add
-   * @throws TextParseException If name is invalid
-   */
-  public void addNames(final String[] names)
-      throws TextParseException {
-    if ((names != null) && (names.length > 0)) {
-      Name[] newnames = new Name[names.length];
-      for (int i = 0; i < names.length; i++) {
-        newnames[i] = Name.fromString(names[i], Name.root);
-      }
-      addNames(newnames);
-    }
-  }
-
 
   /**
    * Adds a domain to the search path that is used during lookups.
    *
    * @param searchPath Name to add to search path
    */
-  public void addSearchPath(final Name[] searchPath) {
-    if ((searchPath != null) && (searchPath.length > 0)) {
-      Name[] temp = this.searchPath;
-      Name[] newNames = new Name[temp.length + searchPath.length];
-      System.arraycopy(temp, 0, newNames, 0, temp.length);
-      System.arraycopy(temp, temp.length, newNames, temp.length, names.length);
-      this.searchPath = newNames;
+  public void addSearchPath(final List<Name> searchPath) {
+    if ((searchPath != null) && (searchPath.size() > 0)) {
+      this.searchPath.addAll(searchPath);
       buildQueries();
     }
   }
 
-
-  /**
-   * Adds a domain to the search path that is used during lookups.
-   *
-   * @param searchPath Name to add to search path
-   * @throws TextParseException If name is invalid
-   */
-  public void addSearchPath(final String[] searchPath)
-      throws TextParseException {
-    if ((searchPath != null) && (searchPath.length > 0)) {
-      Name[] newnames = new Name[searchPath.length];
-      for (int i = 0; i < searchPath.length; i++) {
-        newnames[i] = Name.fromString(searchPath[i], Name.root);
-      }
-      addSearchPath(newnames);
-    }
-  }
-
-
-  public Name[] getNames() {
+  public List<Name> getNames() {
     return names;
   }
-
 
   /**
    * Gets the Responder that is being used for this browse operations.
@@ -333,46 +285,23 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
   }
 
 
-  public Name[] getSearchPath() {
+  public List<Name> getSearchPath() {
     return searchPath;
   }
 
-
   /**
    * Sets the names to browse
    *
    * @param names Names to browse
    */
-  public void setNames(final Name[] names) {
-    this.names = names;
+  public void setNames(final List<Name> names) {
+    this.names = new ArrayList<>(names);
     buildQueries();
   }
 
-
-  /**
-   * Sets the names to browse
-   *
-   * @param names Names to browse
-   */
-  public void setNames(final String[] names)
-      throws TextParseException {
-    if (names == null) {
-      this.names = null;
-      return;
-    }
-    Name[] newnames = new Name[names.length];
-    for (int i = 0; i < names.length; i++) {
-      newnames[i] = Name.fromString(names[i], Name.root);
-    }
-    setNames(newnames);
-  }
-
-
   /**
    * Sets the Responder to be used for this browse operation.
-   *
-   * @param responder The responder
-   */
+   **/
   public synchronized void setQuerier(final Querier querier) {
     this.querier = querier;
   }
@@ -384,40 +313,17 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
    *
    * @param domains An array of names containing the search path.
    */
-  public void setSearchPath(final Name[] domains) {
-    searchPath = domains;
+  public void setSearchPath(final List<Name> domains) {
+    searchPath = new ArrayList<>(domains);
     buildQueries();
   }
 
-
-  /**
-   * Sets the search path to use when performing this lookup. This overrides
-   * the default value.
-   *
-   * @param domains An array of names containing the search path.
-   * @throws TextParseException A name in the array is not a valid DNS name.
-   */
-  public void setSearchPath(final String[] domains)
-      throws TextParseException {
-    if (domains == null) {
-      searchPath = null;
-      return;
-    }
-    Name[] newdomains = new Name[domains.length];
-    for (int i = 0; i < domains.length; i++) {
-      newdomains[i] = Name.fromString(domains[i], Name.root);
-    }
-    setSearchPath(newdomains);
-  }
-
-
   protected void buildQueries() {
     if ((this.names != null) && (searchPath != null)) {
-      ArrayList searchNames = new ArrayList();
-      ArrayList newQueries = new ArrayList();
+      List<Name> searchNames = new ArrayList();
+      List<Message> newQueries = new ArrayList();
       Message multicastQuery = null;
-      for (int index = 0; index < this.names.length; index++) {
-        Name name = this.names[index];
+      for (Name name : this.names) {
         if (name.isAbsolute()) {
           if (MulticastDNSService.isMulticastDomain(name)) {
             if (multicastQuery == null) {
@@ -430,11 +336,11 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
           }
           searchNames.add(name);
         } else {
-          for (int i = 0; i < searchPath.length; i++) {
+          for (Name aSearchPath : searchPath) {
             Name absoluteName;
             try {
-              absoluteName = Name.concatenate(name, searchPath[i]);
-              if (MulticastDNSService.isMulticastDomain(searchPath[i])) {
+              absoluteName = Name.concatenate(name, aSearchPath);
+              if (MulticastDNSService.isMulticastDomain(aSearchPath)) {
                 // Use a single Message for Multicast Queries.
                 if (multicastQuery == null) {
                   multicastQuery = Message.newQuery(Record.newRecord(absoluteName, type, dclass));
@@ -459,8 +365,8 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
       if (multicastQuery != null) {
         newQueries.add(multicastQuery);
       }
-      this.names = (Name[]) searchNames.toArray(new Name[searchNames.size()]);
-      this.queries = (Message[]) newQueries.toArray(new Message[newQueries.size()]);
+      this.names = new ArrayList<>(searchNames);
+      this.queries = new ArrayList<>(newQueries);
     }
   }
 
@@ -488,23 +394,16 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
    *
    * @return The default search path.
    */
-  public static synchronized Name[] getDefaultSearchPath() {
+  public static List<Name> getDefaultSearchPath() {
     if (defaultSearchPath == null) {
       Name[] configuredSearchPath = ResolverConfig.getCurrentConfig().searchPath();
-      defaultSearchPath = new Name[(configuredSearchPath != null ? configuredSearchPath.length : 0)
-          + defaultQuerier.getMulticastDomains().length];
+
       int startPos = 0;
       if (configuredSearchPath != null) {
-        defaultSearchPath = new Name[configuredSearchPath.length + defaultQuerier
-            .getMulticastDomains().length];
-        System.arraycopy(configuredSearchPath, 0, defaultSearchPath, startPos,
-            configuredSearchPath.length);
-        startPos = configuredSearchPath.length;
+        defaultSearchPath = Arrays.asList(configuredSearchPath);
       } else {
-        defaultSearchPath = new Name[defaultQuerier.getMulticastDomains().length];
+        defaultSearchPath = new ArrayList(defaultQuerier.getMulticastDomains());
       }
-      System.arraycopy(defaultQuerier.getMulticastDomains(), 0, defaultSearchPath, startPos,
-          defaultQuerier.getMulticastDomains().length);
     }
 
     return defaultSearchPath;
@@ -513,9 +412,7 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
 
   /**
    * Sets the default mDNS Querier to be used as the default by future Lookups.
-   *
-   * @param responder The default responder.
-   */
+   **/
   public static synchronized void setDefaultQuerier(final Querier querier) {
     defaultQuerier = querier;
   }
@@ -526,9 +423,9 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
    *
    * @param domains The default search path.
    */
-  public static synchronized void setDefaultSearchPath(final Name[] domains) {
-    defaultSearchPath = domains;
-  }
+//  public static synchronized void setDefaultSearchPath(final List<Name> domains) {
+//    defaultSearchPath = domains;
+//  }
 
   /**
    * Sets the search path that will be used as the default by future Lookups.
@@ -536,17 +433,19 @@ public abstract class MulticastDNSLookupBase implements Closeable, Constants {
    * @param domains The default search path.
    * @throws TextParseException A name in the array is not a valid DNS name.
    */
-  public static synchronized void setDefaultSearchPath(final String[] domains)
+  public static synchronized void setDefaultSearchPath(final List<String> domains)
       throws TextParseException {
     if (domains == null) {
       defaultSearchPath = null;
       return;
     }
-    Name[] newdomains = new Name[domains.length];
-    for (int i = 0; i < domains.length; i++) {
-      newdomains[i] = Name.fromString(domains[i], Name.root);
-    }
-    defaultSearchPath = newdomains;
+    defaultSearchPath = domains.stream().map(domain -> {
+      try {
+        return Name.fromString(domain, Name.root);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }).collect(Collectors.toList());
   }
 
 

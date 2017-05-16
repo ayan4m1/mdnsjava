@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -182,31 +183,31 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
             if (addresses[index] != null) {
               if (addresses[index].getAddress().length == 4) {
                 additionalRecords.add(
-                    new ARecord(service.getHost(), DClass.IN + CACHE_FLUSH, DEFAULT_A_TTL,
+                    new ARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_A_TTL,
                         addresses[index]));
               } else {
                 additionalRecords.add(
-                    new AAAARecord(service.getHost(), DClass.IN + CACHE_FLUSH, DEFAULT_A_TTL,
+                    new AAAARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_A_TTL,
                         addresses[index]));
               }
             }
           }
         }
 
-        records.add(new PTRRecord(typeName, DClass.IN, DEFAULT_SRV_TTL, shortSRVName));
+        records.add(new PTRRecord(typeName, DClass.IN, Constants.DEFAULT_SRV_TTL, shortSRVName));
         if (!fullTypeName.equals(typeName)) {
-          records.add(new PTRRecord(fullTypeName, DClass.IN, DEFAULT_SRV_TTL, shortSRVName));
+          records.add(new PTRRecord(fullTypeName, DClass.IN, Constants.DEFAULT_SRV_TTL, shortSRVName));
         }
 
-        records.add(new SRVRecord(shortSRVName, DClass.IN + CACHE_FLUSH, DEFAULT_SRV_TTL, 0, 0,
+        records.add(new SRVRecord(shortSRVName, DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_SRV_TTL, 0, 0,
             service.getPort(), service.getHost()));
-        records.add(new TXTRecord(shortSRVName, DClass.IN + CACHE_FLUSH, DEFAULT_TXT_TTL,
+        records.add(new TXTRecord(shortSRVName, DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_TXT_TTL,
             Arrays.asList(service.getText())));
         additionalRecords.add(
-            new NSECRecord(shortSRVName, DClass.IN + CACHE_FLUSH, DEFAULT_RR_WITHOUT_HOST_TTL,
+            new NSECRecord(shortSRVName, DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_RR_WITHOUT_HOST_TTL,
                 shortSRVName, new int[]{Type.TXT, Type.SRV}));
         additionalRecords.add(
-            new NSECRecord(service.getHost(), DClass.IN + CACHE_FLUSH, DEFAULT_RR_WITH_HOST_TTL,
+            new NSECRecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_RR_WITH_HOST_TTL,
                 service.getHost(), new int[]{Type.A, Type.AAAA}));
 
         for (Record record : records) {
@@ -222,11 +223,11 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
         // Register Service Types in a separate request!
         records.add(
-            new PTRRecord(new Name(SERVICES_NAME + "." + domain), DClass.IN, DEFAULT_SRV_TTL,
+            new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain), DClass.IN, Constants.DEFAULT_SRV_TTL,
                 typeName));
         if (!fullTypeName.equals(typeName)) {
           records.add(
-              new PTRRecord(new Name(SERVICES_NAME + "." + domain), DClass.IN, DEFAULT_SRV_TTL,
+              new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain), DClass.IN, Constants.DEFAULT_SRV_TTL,
                   fullTypeName));
         }
 
@@ -287,7 +288,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         }
 
         // Original Lookup lookup = new Lookup(new Name[]{serviceName}, Type.ANY);
-        Lookup lookup = new Lookup(new Name[]{shortSRVName}, Type.ANY);
+        Lookup lookup = new Lookup(Collections.singletonList(shortSRVName), Type.ANY);
         try {
           instances = lookup.lookupServices();
 
@@ -633,7 +634,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         }
       }
 
-      Lookup lookup = new Lookup(new Name[]{typeName, fullTypeName}, Type.PTR, DClass.ANY);
+      Lookup lookup = new Lookup(Arrays.asList(typeName, fullTypeName), Type.PTR, DClass.ANY);
       try {
         boolean found = false;
         Record[] results = lookup.lookupRecords();
@@ -676,57 +677,50 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
   }
 
   public Set<Domain> getBrowseDomains(final Set<Name> searchPath) {
-    Set<Domain> results = new LinkedHashSet<Domain>();
-    Name[] defaultDomains = Constants.ALL_MULTICAST_DNS_DOMAINS;
-    for (Name name : defaultDomains) {
+    Set<Domain> results = new LinkedHashSet<>();
+    for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    results.addAll(getDomains(new String[]{Constants.DEFAULT_BROWSE_DOMAIN_NAME,
-        Constants.BROWSE_DOMAIN_NAME,
-        Constants.LEGACY_BROWSE_DOMAIN_NAME}, searchPath.toArray(new Name[searchPath.size()])));
+    results.addAll(getDomains(Arrays.asList(Constants.DEFAULT_BROWSE_DOMAIN_NAME, Constants.BROWSE_DOMAIN_NAME,
+        Constants.LEGACY_BROWSE_DOMAIN_NAME), new ArrayList<>(searchPath)));
     return results;
   }
 
   public Set<Domain> getDefaultBrowseDomains(final Set<Name> searchPath) {
-    Set<Domain> results = new LinkedHashSet<Domain>();
-    Name[] defaultDomains = Constants.ALL_MULTICAST_DNS_DOMAINS;
-    for (Name name : defaultDomains) {
+    Set<Domain> results = new LinkedHashSet<>();
+    for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    searchPath.addAll(Arrays.asList(Constants.ALL_MULTICAST_DNS_DOMAINS));
-    results.addAll(getDomains(new String[]{Constants.DEFAULT_BROWSE_DOMAIN_NAME},
-        searchPath.toArray(new Name[searchPath.size()])));
+    searchPath.addAll(Constants.ALL_MULTICAST_DNS_DOMAINS);
+    results.addAll(getDomains(Collections.singletonList(Constants.DEFAULT_BROWSE_DOMAIN_NAME),
+        new ArrayList<>(searchPath)));
     return results;
   }
 
 
   public Set<Domain> getDefaultRegistrationDomains(final Set<Name> searchPath) {
-    Set<Domain> results = new LinkedHashSet<Domain>();
-    Name[] defaultDomains = Constants.ALL_MULTICAST_DNS_DOMAINS;
-    for (Name name : defaultDomains) {
+    Set<Domain> results = new LinkedHashSet<>();
+    for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    searchPath.addAll(Arrays.asList(Constants.ALL_MULTICAST_DNS_DOMAINS));
-    results.addAll(getDomains(new String[]{Constants.DEFAULT_REGISTRATION_DOMAIN_NAME},
-        searchPath.toArray(new Name[searchPath.size()])));
+    searchPath.addAll(Constants.ALL_MULTICAST_DNS_DOMAINS);
+    results.addAll(getDomains(Collections.singletonList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME),
+        new ArrayList<>(searchPath)));
     return results;
   }
 
 
   public Set<Domain> getRegistrationDomains(final Set<Name> searchPath) {
-    Set<Domain> results = new LinkedHashSet<Domain>();
-    Name[] defaultDomains = Constants.ALL_MULTICAST_DNS_DOMAINS;
-    for (Name name : defaultDomains) {
+    Set<Domain> results = new LinkedHashSet<>();
+    for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    results.addAll(getDomains(new String[]{Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
-        Constants.REGISTRATION_DOMAIN_NAME}, searchPath.toArray(new Name[searchPath.size()])));
+    results.addAll(getDomains(Arrays.asList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
+        Constants.REGISTRATION_DOMAIN_NAME), new ArrayList<>(searchPath)));
     return results;
   }
 
-
-  public ServiceInstance register(final ServiceInstance service)
-      throws IOException {
+  public ServiceInstance register(final ServiceInstance service) throws IOException {
     Register register = new Register(service);
     try {
       return register.register();
@@ -810,18 +804,18 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
   }
 
 
-  protected Set<Domain> getDomains(final String[] names, final Name[] path) {
+  protected Set<Domain> getDomains(final List<String> names, final List<Name> path) {
     Set<Domain> results = new LinkedHashSet<Domain>();
 
-    Stack<Name[]> stack = new Stack<Name[]>();
+    Stack<List<Name>> stack = new Stack<>();
     stack.push(path);
 
     while (!stack.isEmpty()) {
-      Name[] searchPath = stack.pop();
+      List<Name> searchPath = stack.pop();
 
       Lookup lookup = null;
       try {
-        lookup = new Lookup(names);
+        lookup = new Lookup(names.toArray(new String[names.size()]));
         lookup.setSearchPath(searchPath);
         lookup.setQuerier(querier);
         Domain[] domains = lookup.lookupDomains();
@@ -834,7 +828,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
             }
           }
           if (newDomains.size() > 0) {
-            stack.push(newDomains.toArray(new Name[newDomains.size()]));
+            stack.push(newDomains);
           }
         }
       } catch (IOException e) {
@@ -881,13 +875,13 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
 
   public static boolean isMulticastDomain(final Name name) {
-    for (Name multicastDomain : IPv4_MULTICAST_DOMAINS) {
+    for (Name multicastDomain : Constants.IPv4_MULTICAST_DOMAINS) {
       if (name.equals(multicastDomain) || name.subdomain(multicastDomain)) {
         return true;
       }
     }
 
-    for (Name multicastDomain : IPv6_MULTICAST_DOMAINS) {
+    for (Name multicastDomain : Constants.IPv6_MULTICAST_DOMAINS) {
       if (name.equals(multicastDomain) || name.subdomain(multicastDomain)) {
         return true;
       }

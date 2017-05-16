@@ -270,7 +270,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
   protected InetAddress multicastAddress;
 
-  protected int port = MulticastDNSService.DEFAULT_PORT;
+  protected int port = Constants.DEFAULT_PORT;
 
   protected OPTRecord queryOPT;
 
@@ -615,7 +615,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
   /**
    * {@inheritDoc}
    */
-  public Name[] getMulticastDomains() {
+  public List<Name> getMulticastDomains() {
     boolean ipv4 = isIPv4();
     boolean ipv6 = isIPv6();
 
@@ -626,10 +626,9 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     } else if (ipv6) {
       return Constants.IPv6_MULTICAST_DOMAINS;
     } else {
-      return new Name[0];
+      return new ArrayList<>();
     }
   }
-
 
   /**
    * {@inheritDoc}
@@ -643,7 +642,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return false;
   }
 
-
   /**
    * {@inheritDoc}
    */
@@ -655,7 +653,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
     return false;
   }
-
 
   /**
    * {@inheritDoc}
@@ -670,7 +667,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return cacheMonitor.isOperational() && executors.isScheduledExecutorOperational() && executors
         .isExecutorOperational();
   }
-
 
   public void packetReceived(final Packet packet) {
     if (mdnsVerbose) {
@@ -702,16 +698,13 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
   }
 
-
   public ResolverListener registerListener(final ResolverListener listener) {
     return resolverListenerProcessor.registerListener(listener);
   }
 
-
   /**
    * {@inheritDoc}
    */
-
   public Message send(final Message request)
       throws IOException {
     if (request == null) {
@@ -773,11 +766,9 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return cache.queryCache(query, Credibility.ANY);
   }
 
-
   /**
    * {@inheritDoc}
    */
-
   public Object sendAsync(final Message m, final ResolverListener listener) {
     final Message query = (Message) m.clone();
     final Object id = query.getHeader().getID();
@@ -837,14 +828,12 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return id;
   }
 
-
   /**
    * {@inheritDoc}
    */
   public void setAddress(final InetAddress address) {
     multicastAddress = address;
   }
-
 
   /**
    * {@inheritDoc}
@@ -871,15 +860,12 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
   }
 
-
   /**
    * {@inheritDoc}
    */
-
   public void setEDNS(final int level) {
     setEDNS(level, 0, 0, null);
   }
-
 
   /**
    * {@inheritDoc}
@@ -896,20 +882,16 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     queryOPT = new OPTRecord(payloadSize, 0, level, flags, options);
   }
 
-
   public void setIgnoreTruncation(final boolean ignoreTruncation) {
     this.ignoreTruncation = ignoreTruncation;
   }
 
-
   /**
    * {@inheritDoc}
    */
-
   public void setPort(final int port) {
     this.port = port;
   }
-
 
   /**
    * {@inheritDoc}
@@ -918,14 +900,12 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     setRetryWaitTime(secs, 0);
   }
 
-
   /**
    * {@inheritDoc}
    */
   public void setRetryWaitTime(final int secs, final int msecs) {
     responseWaitTime = (secs * 1000L) + msecs;
   }
-
 
   /**
    * {@inheritDoc}
@@ -935,14 +915,12 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     // Not implemented. mDNS is UDP only.
   }
 
-
   /**
    * {@inheritDoc}
    */
   public void setTimeout(final int secs) {
     setTimeout(secs, 0);
   }
-
 
   /**
    * {@inheritDoc}
@@ -951,7 +929,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     timeoutValue = (secs * 1000L) + msecs;
   }
 
-
   /**
    * {@inheritDoc}
    */
@@ -959,11 +936,9 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     tsig = key;
   }
 
-
   public ResolverListener unregisterListener(final ResolverListener listener) {
     return resolverListenerProcessor.unregisterListener(listener);
   }
-
 
   protected void applyEDNS(final Message query) {
     if ((queryOPT == null) || (query.getOPT() != null)) {
@@ -971,7 +946,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
     query.addRecord(queryOPT, Section.ADDITIONAL);
   }
-
 
   protected Message convertUpdateToQueryResponse(final Message update) {
     Message m = new Message();
@@ -982,26 +956,23 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     h.setFlag(Flags.QR);
 
     Record[] records = update.getSectionArray(Section.UPDATE);
-    for (int index = 0; index < records.length; index++) {
-      m.addRecord(records[index], Section.ANSWER);
+    for (Record record : records) {
+      m.addRecord(record, Section.ANSWER);
     }
 
     records = update.getSectionArray(Section.ADDITIONAL);
-    for (int index = 0; index < records.length; index++) {
-      m.addRecord(records[index], Section.ADDITIONAL);
+    for (Record record : records) {
+      m.addRecord(record, Section.ADDITIONAL);
     }
 
     return m;
   }
 
-
   @Override
-  protected void finalize()
-      throws Throwable {
+  protected void finalize() throws Throwable {
     close();
     super.finalize();
   }
-
 
   /**
    * Parses a DNS message from a raw DNS packet stored in a byte array.
@@ -1031,7 +1002,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
   }
 
-
   protected int verifyTSIG(final Message query, final Message response, final byte[] b,
       final TSIG tsig) {
     if (tsig == null) {
@@ -1048,9 +1018,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return error;
   }
 
-
-  protected void writeMessageToWire(final Message message/* , boolean remember */)
-      throws IOException {
+  protected void writeMessageToWire(final Message message) throws IOException {
     Header header = message.getHeader();
     header.setID(0);
     applyEDNS(message);
@@ -1075,7 +1043,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         } else {
           Message[] messages = MulticastDNSUtils.splitMessage(message);
           for (int index = 0; index < messages.length; index++) {
-            writeMessageToWire(messages[index]/* , remember */);
+            writeMessageToWire(messages[index]);
           }
           return;
         }
@@ -1089,12 +1057,10 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     }
   }
 
-
   /**
    * {@inheritDoc}
    */
-  protected void writeResponse(final Message message)
-      throws IOException {
+  protected void writeResponse(final Message message) throws IOException {
     if (mdnsVerbose) {
       logger.logp(Level.INFO, getClass().getName(), "writeResponse",
           "Writing Response to " + multicastAddress.getHostAddress() + ":" + port);
@@ -1108,7 +1074,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
     writeMessageToWire(message/* , true */);
   }
-
 
   private void updateCache(final Record[] records, final int credibility) {
     if ((records != null) && (records.length > 0)) {

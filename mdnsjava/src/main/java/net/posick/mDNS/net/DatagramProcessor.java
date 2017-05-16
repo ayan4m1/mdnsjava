@@ -15,20 +15,13 @@ import org.xbill.DNS.Options;
 public class DatagramProcessor extends NetworkProcessor {
 
   // The default UDP datagram payload size
-  protected int maxPayloadSize = 512;
-
-  protected boolean isMulticast = false;
-
-  protected boolean loopbackModeDisabled = false;
-
-  protected boolean reuseAddress = true;
-
-  protected int ttl = 255;
-
-  protected DatagramSocket socket;
-
+  private int maxPayloadSize = 512;
+  private boolean isMulticast = false;
+  private boolean loopbackModeDisabled = false;
+  private boolean reuseAddress = true;
+  private int ttl = 255;
+  private DatagramSocket socket;
   private long lastPacket;
-
 
   public DatagramProcessor(final InetAddress ifaceAddress, final InetAddress address,
       final int port, final PacketListener listener)
@@ -57,13 +50,7 @@ public class DatagramProcessor extends NetworkProcessor {
           // ignore
         }
       }
-            
-            /*
-            if ((temp = Options.value("mdns_reuse_address")) != null && temp.length() > 0)
-            {
-                reuseAddress = "true".equalsIgnoreCase(temp) || "t".equalsIgnoreCase(temp) || "yes".equalsIgnoreCase(temp) || "y".equalsIgnoreCase(temp);
-            }
-            */
+
       reuseAddress = true;
 
       socket.setLoopbackMode(loopbackModeDisabled);
@@ -120,10 +107,8 @@ public class DatagramProcessor extends NetworkProcessor {
     maxPayloadSize = mtu - 40 /* IPv6 Header Size */ - 8 /* UDP Header */;
   }
 
-
   @Override
-  public void close()
-      throws IOException {
+  public void close() throws IOException {
     super.close();
 
     if (isMulticast) {
@@ -143,38 +128,31 @@ public class DatagramProcessor extends NetworkProcessor {
     socket.close();
   }
 
-
   public boolean isLoopbackModeDisabled() {
     return loopbackModeDisabled;
   }
-
 
   public boolean isReuseAddress() {
     return reuseAddress;
   }
 
-
   public int getTTL() {
     return ttl;
   }
-
 
   public int getMaxPayloadSize() {
     return maxPayloadSize;
   }
 
-
   public boolean isMulticast() {
     return isMulticast;
   }
-
 
   @Override
   public boolean isOperational() {
     return super.isOperational() && socket.isBound() && !socket.isClosed() && (lastPacket <= (
         System.currentTimeMillis() + 120000));
   }
-
 
   public void run() {
     lastPacket = System.currentTimeMillis();
@@ -205,10 +183,8 @@ public class DatagramProcessor extends NetworkProcessor {
     }
   }
 
-
   @Override
-  public void send(final byte[] data)
-      throws IOException {
+  public void send(final byte[] data) throws IOException {
     if (exit) {
       return;
     }
@@ -236,10 +212,8 @@ public class DatagramProcessor extends NetworkProcessor {
     }
   }
 
-
   @Override
-  protected void finalize()
-      throws Throwable {
+  protected void finalize() throws Throwable {
     close();
     super.finalize();
   }

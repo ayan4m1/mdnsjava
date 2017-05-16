@@ -52,7 +52,7 @@ public class Browse extends MulticastDNSLookupBase {
     }
 
 
-    Message[] getQueries() {
+    List<Message> getQueries() {
       return queries;
     }
 
@@ -164,44 +164,36 @@ public class Browse extends MulticastDNSLookupBase {
 
   private final Executors executors = Executors.newInstance();
   protected List browseOperations = new LinkedList();
-  
-  protected Browse()
-      throws IOException {
+
+  protected Browse() throws IOException {
     super();
   }
 
-  public Browse(Name... names)
-      throws IOException {
+  public Browse(Name... names) throws IOException {
     super(names);
   }
 
-  public Browse(Name[] names, int type)
-      throws IOException {
+  public Browse(List<Name> names, int type) throws IOException {
     super(names, type);
   }
 
-  public Browse(Name[] names, int type, int dclass)
-      throws IOException {
+  public Browse(List<Name> names, int type, int dclass) throws IOException {
     super(names, type, dclass);
   }
 
-  protected Browse(Message message)
-      throws IOException {
+  protected Browse(Message message) throws IOException {
     super(message);
   }
 
-  public Browse(String... names)
-      throws IOException {
+  public Browse(String... names) throws IOException {
     super(names);
   }
 
-  public Browse(String[] names, int type)
-      throws IOException {
+  public Browse(String[] names, int type) throws IOException {
     super(names, type);
   }
 
-  public Browse(String[] names, int type, int dclass)
-      throws IOException {
+  public Browse(String[] names, int type, int dclass) throws IOException {
     super(names, type, dclass);
   }
 
@@ -214,7 +206,7 @@ public class Browse extends MulticastDNSLookupBase {
       throw new NullPointerException("Error sending asynchronous query, listener is null!");
     }
 
-    if (queries == null || queries.length == 0) {
+    if (queries == null || queries.size() == 0) {
       throw new NullPointerException("Error sending asynchronous query, No queries specified!");
     }
 

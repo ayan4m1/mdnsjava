@@ -1,53 +1,44 @@
 package net.posick.mDNS;
 
+import java.util.Arrays;
+import java.util.List;
 import org.xbill.DNS.Name;
 
-public interface Constants {
+public final class Constants {
 
   public static final long DEFAULT_RR_WITHOUT_HOST_TTL = 4500; // 75 Minutes
-
   public static final long DEFAULT_RR_WITH_HOST_TTL = 120; // 2 Minutes
-
   public static final long DEFAULT_OTHER_TTL = DEFAULT_RR_WITHOUT_HOST_TTL;
-
   public static final long DEFAULT_SRV_TTL = DEFAULT_RR_WITH_HOST_TTL;
-
   public static final long DEFAULT_TXT_TTL = DEFAULT_RR_WITHOUT_HOST_TTL;
-
   public static final long DEFAULT_A_TTL = DEFAULT_RR_WITH_HOST_TTL;
-
   public static final long DEFAULT_PTR_TTL = DEFAULT_RR_WITHOUT_HOST_TTL;
-
   public static final String LINK_LOCAL_DOMAIN = "local.";
 
-  public static final Name[] ALL_MULTICAST_DNS_DOMAINS = new Name[]
-      {
+  public static final List<Name> ALL_MULTICAST_DNS_DOMAINS = Arrays.asList(
           Name.fromConstantString(LINK_LOCAL_DOMAIN),
           Name.fromConstantString("254.169.in-addr.arpa."),
           Name.fromConstantString("8.e.f.ip6.arpa."),
           Name.fromConstantString("9.e.f.ip6.arpa."),
           Name.fromConstantString("a.e.f.ip6.arpa."),
           Name.fromConstantString("b.e.f.ip6.arpa.")
-      };
+  );
 
   /**
    * The multicast domains.  These domains must be sent to the IPv4 or IPv6 mDNS address
    */
-  public static final Name[] IPv4_MULTICAST_DOMAINS = new Name[]
-      {
+  public static final List<Name> IPv4_MULTICAST_DOMAINS = Arrays.asList(
           Name.fromConstantString(LINK_LOCAL_DOMAIN),
-          Name.fromConstantString("254.169.in-addr.arpa."),
-      };
+          Name.fromConstantString("254.169.in-addr.arpa.")
+  );
 
-  public static final Name[] IPv6_MULTICAST_DOMAINS = new Name[]
-      {
+  public static final List<Name> IPv6_MULTICAST_DOMAINS = Arrays.asList(
           Name.fromConstantString(LINK_LOCAL_DOMAIN),
           Name.fromConstantString("8.e.f.ip6.arpa."),
           Name.fromConstantString("9.e.f.ip6.arpa."),
           Name.fromConstantString("a.e.f.ip6.arpa."),
           Name.fromConstantString("b.e.f.ip6.arpa.")
-      };
-
+  );
   /**
    * The default port to send queries to
    */
