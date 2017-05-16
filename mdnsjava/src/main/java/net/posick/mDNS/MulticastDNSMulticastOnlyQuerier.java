@@ -325,7 +325,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       // Update expiry of records in accordance to RFC 6762 Section 5.2
       if (credibility >= Credibility.AUTH_AUTHORITY) {
         if (isAboutToExpire(ttl, expiresIn)) {
-          Record[] records = MulticastDNSUtils.extractRecords(rrs);
+          List<Record> records = MulticastDNSUtils.extractRecords(rrs);
           for (Record record : records) {
             try {
               MulticastDNSUtils.setTLLForRecord(record, ttl);
@@ -403,12 +403,12 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         list = nonauthRecords;
       }
 
-      Record[] records = MulticastDNSUtils.extractRecords(rrs);
-      if ((records != null) && (records.length > 0)) {
-        for (int i = 0; i < records.length; i++) {
+      List<Record> records = MulticastDNSUtils.extractRecords(rrs);
+      if ((records != null) && (records.size() > 0)) {
+        for (Record record : records) {
           try {
-            MulticastDNSUtils.setTLLForRecord(records[i], 0);
-            list.add(records[i]);
+            MulticastDNSUtils.setTLLForRecord(record, 0);
+            list.add(record);
           } catch (Exception e) {
             logger.log(Level.WARNING, e.getMessage(), e);
           }
@@ -1075,10 +1075,9 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     writeMessageToWire(message/* , true */);
   }
 
-  private void updateCache(final Record[] records, final int credibility) {
-    if ((records != null) && (records.length > 0)) {
-      for (int index = 0; index < records.length; index++) {
-        Record record = records[index];
+  private void updateCache(final List<Record> records, final int credibility) {
+    if ((records != null) && (records.size() > 0)) {
+      for (Record record : records) {
         try {
           // Workaround. mDNS Uses high order DClass bit for Unicast Response OK
           Record cacheRecord = MulticastDNSUtils.clone(record);
@@ -1088,8 +1087,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
                 .lookupRecords(cacheRecord.getName(), cacheRecord.getType(), Credibility.ANY);
             RRset[] rrs = response.answers();
             if ((rrs != null) && (rrs.length > 0)) {
-              Record[] cachedRecords = MulticastDNSUtils.extractRecords(rrs);
-              if ((cachedRecords != null) && (cachedRecords.length > 0)) {
+              List<Record> cachedRecords = MulticastDNSUtils.extractRecords(Arrays.asList(rrs));
+              if ((cachedRecords != null) && (cachedRecords.size() > 0)) {
                 if (mdnsVerbose) {
                   logger.logp(Level.INFO, getClass().getName(), "updateCache",
                       "Updating Cached Record: " + cacheRecord);

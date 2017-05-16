@@ -24,6 +24,9 @@ public class Browse extends MulticastDNSLookupBase {
 
   static final Logger logger = Logger.getLogger(Browse.class.getName());
 
+  private final Executors executors = Executors.newInstance();
+  protected List browseOperations = new LinkedList();
+
   /**
    * The Browse Operation manages individual browse sessions.  Retrying broadcasts.
    * Refer to the mDNS specification [RFC 6762]
@@ -31,14 +34,12 @@ public class Browse extends MulticastDNSLookupBase {
    * @author Steve Posick
    */
   protected class BrowseOperation implements ResolverListener, Runnable {
-
     private int broadcastDelay = 0;
 
-    private ListenerProcessor<ResolverListener> listenerProcessor = new ListenerProcessor<ResolverListener>(
-        ResolverListener.class);
+    private ListenerProcessor<ResolverListener> listenerProcessor =
+        new ListenerProcessor<>(ResolverListener.class);
 
     private long lastBroadcast;
-
 
     BrowseOperation() {
       this(null);
@@ -51,11 +52,9 @@ public class Browse extends MulticastDNSLookupBase {
       }
     }
 
-
     List<Message> getQueries() {
       return queries;
     }
-
 
     boolean answersQuery(Record record) {
       if (record != null) {
@@ -82,30 +81,20 @@ public class Browse extends MulticastDNSLookupBase {
       return false;
     }
 
-
     boolean matchesBrowse(Message message) {
-      Record[] thatAnswers = MulticastDNSUtils
+      List<Record> thatAnswers = MulticastDNSUtils
           .extractRecords(message, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL);
 
-      for (Record thatAnswer : thatAnswers) {
-        if (answersQuery(thatAnswer)) {
-          return true;
-        }
-      }
-
-      return false;
+      return thatAnswers.stream().anyMatch(this::answersQuery);
     }
-
 
     ResolverListener registerListener(ResolverListener listener) {
       return listenerProcessor.registerListener(listener);
     }
 
-
     ResolverListener unregisterListener(ResolverListener listener) {
       return listenerProcessor.unregisterListener(listener);
     }
-
 
     public void receiveMessage(Object id, Message message) {
       if (message != null) {
@@ -119,11 +108,9 @@ public class Browse extends MulticastDNSLookupBase {
       }
     }
 
-
     public void handleException(Object id, Exception e) {
       listenerProcessor.getDispatcher().handleException(id, e);
     }
-
 
     public void run() {
       if (logger.isLoggable(Level.FINE)) {
@@ -152,7 +139,6 @@ public class Browse extends MulticastDNSLookupBase {
       }
     }
 
-
     public void close() {
       try {
         listenerProcessor.close();
@@ -161,9 +147,6 @@ public class Browse extends MulticastDNSLookupBase {
       }
     }
   }
-
-  private final Executors executors = Executors.newInstance();
-  protected List browseOperations = new LinkedList();
 
   protected Browse() throws IOException {
     super();

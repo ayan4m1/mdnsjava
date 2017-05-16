@@ -10,9 +10,16 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import net.posick.mDNS.Lookup.RecordListener;
 import net.posick.mDNS.utils.Misc;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.collections4.IteratorUtils;
+import org.apache.commons.collections4.ListUtils;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class MulticastDNSUtils {
@@ -38,9 +45,9 @@ public class MulticastDNSUtils {
       case Opcode.NOTIFY:
       case Opcode.STATUS:
         int index = 0;
-        Record[] qRecords = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
-        Record[] rRecords = MulticastDNSUtils.extractRecords(response, Section.QUESTION);
-        boolean[] similarArray = new boolean[qRecords.length];
+        List<Record> qRecords = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
+        List<Record> rRecords = MulticastDNSUtils.extractRecords(response, Section.QUESTION);
+        boolean[] similarArray = new boolean[qRecords.size()];
         for (Record qRecord : qRecords) {
           similarArray[index] = false;
           for (Record rRecord : rRecords) {
@@ -84,8 +91,8 @@ public class MulticastDNSUtils {
       case Opcode.IQUERY:
       case Opcode.NOTIFY:
       case Opcode.STATUS:
-        Record[] qRecords = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
-        Record[] rRecords = MulticastDNSUtils
+        List<Record> qRecords = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
+        List<Record> rRecords = MulticastDNSUtils
             .extractRecords(response, Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY);
         for (Record qRecord : qRecords) {
           for (Record rRecord : rRecords) {
@@ -106,17 +113,13 @@ public class MulticastDNSUtils {
   }
 
 
-  public static Record[] extractRecords(final Message message, final int... sections) {
-    Record[] records = EMPTY_RECORDS;
+  public static List<Record> extractRecords(final Message message, final int... sections) {
+    List<Record> records = new ArrayList<>();
 
     for (int section : sections) {
       Record[] tempRecords = message.getSectionArray(section);
-      if ((tempRecords != null) && (tempRecords.length > 0)) {
-        int size = records.length + tempRecords.length;
-        Record[] newRecords = new Record[size];
-        System.arraycopy(records, 0, newRecords, 0, records.length);
-        System.arraycopy(tempRecords, 0, newRecords, records.length, tempRecords.length);
-        records = newRecords;
+      if (tempRecords != null && tempRecords.length > 0) {
+        records.addAll(Arrays.asList(tempRecords));
       }
     }
 
@@ -124,45 +127,24 @@ public class MulticastDNSUtils {
   }
 
 
-  public static final Record[] extractRecords(final RRset rrset) {
+  public static final List<Record> extractRecords(final RRset rrset) {
     if (rrset == null) {
-      return new Record[0];
+      return new ArrayList<>();
     }
 
-    final Record[] results = new Record[rrset.size()];
-
-    if (results.length > 0) {
-      int index = 0;
-      Iterator iterator = rrset.rrs(false);
-      if (iterator != null) {
-        while (iterator.hasNext()) {
-          results[index++] = (Record) iterator.next();
-        }
-      }
-    }
-
-    return results;
+    Iterator<Record> iterator = rrset.rrs(false);
+    return IteratorUtils.toList(iterator);
   }
 
 
-  public static final Record[] extractRecords(final RRset[] rrs) {
-    if ((rrs == null) || (rrs.length == 0)) {
-      return MulticastDNSUtils.EMPTY_RECORDS;
+  public static final List<Record> extractRecords(final List<RRset> rrs) {
+    if ((rrs == null) || (rrs.size() == 0)) {
+      return new ArrayList<>();
     }
 
-    int capacity = 0;
-    for (RRset rr : rrs) {
-      capacity += rr.size();
-    }
-    final Record[] results = new Record[capacity];
+    List<Record> results = new ArrayList<>();
+    rrs.forEach(rr -> results.addAll(extractRecords(rr)));
 
-    int index = 0;
-    for (RRset rr : rrs) {
-      Record[] records = extractRecords(rr);
-      for (Record record : records) {
-        results[index++] = record;
-      }
-    }
 
     return results;
   }
@@ -301,8 +283,9 @@ public class MulticastDNSUtils {
             (responseHeader.getRcode() == queryHeader.getRcode());
       }
 
-      return headerEqual && Arrays.equals(MulticastDNSUtils.extractRecords(message2, 0, 1, 2, 3),
-          MulticastDNSUtils.extractRecords(message1, 0, 1, 2, 3));
+      return headerEqual && ListUtils
+          .isEqualList(MulticastDNSUtils.extractRecords(message2, 0, 1, 2, 3),
+              MulticastDNSUtils.extractRecords(message1, 0, 1, 2, 3));
     }
   }
 

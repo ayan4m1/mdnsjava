@@ -7,6 +7,8 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -253,7 +255,7 @@ public class MulticastDNSCache extends Cache implements Closeable {
           RRset rrs = (RRset) element.getElement();
 
           if (shutdown) {
-            Record[] records = MulticastDNSUtils.extractRecords(rrs);
+            List<Record> records = MulticastDNSUtils.extractRecords(rrs);
             for (Record record : records) {
               if (element.getCredibility() >= Credibility.AUTH_AUTHORITY) {
                 MulticastDNSUtils.setTLLForRecord(record, 0);
@@ -417,7 +419,7 @@ public class MulticastDNSCache extends Cache implements Closeable {
 
       Stack stack = new Stack();
 
-      Record[] updates = MulticastDNSUtils.extractRecords(query, Section.UPDATE);
+      List<Record> updates = MulticastDNSUtils.extractRecords(query, Section.UPDATE);
       for (Record update : updates) {
         stack.push(update.getName());
       }
@@ -430,7 +432,7 @@ public class MulticastDNSCache extends Cache implements Closeable {
           header.setOpcode(Opcode.QUERY);
           header.setFlag(Flags.QR);
 
-          Record[] answers = MulticastDNSUtils.extractRecords(response.answers());
+          List<Record> answers = MulticastDNSUtils.extractRecords(Arrays.asList(response.answers()));
           for (Record answer : answers) {
             if (!message.findRecord(answer)) {
               message.addRecord(answer, Section.ANSWER);
@@ -451,8 +453,8 @@ public class MulticastDNSCache extends Cache implements Closeable {
     Header header = message.getHeader();
     header.setRcode(Rcode.NXDOMAIN);
 
-    Record[] questions = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
-    if ((questions != null) && (questions.length > 0)) {
+    List<Record> questions = MulticastDNSUtils.extractRecords(query, Section.QUESTION);
+    if ((questions != null) && (questions.size() > 0)) {
       for (Record question : questions) {
         message.addRecord(question, Section.QUESTION);
 
@@ -463,14 +465,14 @@ public class MulticastDNSCache extends Cache implements Closeable {
           header.setOpcode(Opcode.QUERY);
           header.setFlag(Flags.QR);
 
-          Record[] answers = MulticastDNSUtils.extractRecords(response.answers());
-          if ((answers != null) && (answers.length > 0)) {
+          List<Record> answers = MulticastDNSUtils.extractRecords(Arrays.asList(response.answers()));
+          if ((answers != null) && (answers.size() > 0)) {
             for (Record answer : answers) {
               if (!message.findRecord(answer)) {
                 message.addRecord(answer, Section.ANSWER);
               }
 
-              Record[] additionalAnswers = queryCacheForAdditionalRecords(answer, credibility);
+              List<Record> additionalAnswers = queryCacheForAdditionalRecords(answer, credibility);
               for (Record additionalAnswer : additionalAnswers) {
                 if (!message.findRecord(additionalAnswer)) {
                   message.addRecord(additionalAnswer, Section.ADDITIONAL);
@@ -492,29 +494,27 @@ public class MulticastDNSCache extends Cache implements Closeable {
    *
    * @return The list of additional records
    */
-  public Record[] queryCacheForAdditionalRecords(final Record record, final int credibility) {
+  public List<Record> queryCacheForAdditionalRecords(final Record record, final int credibility) {
     if (record == null) {
-      return MulticastDNSUtils.EMPTY_RECORDS;
+      return new ArrayList<>();
     }
 
-    LinkedList results = new LinkedList();
+    List results = new LinkedList();
 
     Name target = MulticastDNSUtils.getTargetFromRecord(record);
     if (target != null) {
       SetResponse response = lookupRecords(target, Type.ANY, credibility);
       if (response.isSuccessful()) {
-        Record[] answers = MulticastDNSUtils.extractRecords(response.answers());
+        List<Record> answers = MulticastDNSUtils.extractRecords(Arrays.asList(response.answers()));
         for (Record answer : answers) {
           results.add(answer);
-          Record[] tempRecords = queryCacheForAdditionalRecords(answer, credibility);
-          for (Record tempRecord : tempRecords) {
-            results.add(tempRecord);
-          }
+          List<Record> tempRecords = queryCacheForAdditionalRecords(answer, credibility);
+          results.addAll(tempRecords);
         }
       }
     }
 
-    return (Record[]) results.toArray(new Record[results.size()]);
+    return results;
   }
 
   public void removeElementCopy(final Name name, final int type) {

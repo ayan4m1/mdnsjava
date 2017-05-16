@@ -18,6 +18,7 @@ import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.posick.mDNS.Lookup.Domain;
+import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.Misc;
@@ -125,8 +126,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           }
 
           if (replies.size() > 0) {
-            for (Iterator i = replies.iterator(); i.hasNext(); ) {
-              Object o = i.next();
+            for (Object o : replies) {
               if (o instanceof Exception) {
                 if (o instanceof IOException) {
                   throw (IOException) o;
@@ -141,15 +141,15 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
                 if (message.getRcode() == Rcode.NOERROR || message.getRcode()
                     == Rcode.FORMERR) // FORMERR Added to support non RFC 6763 compliant service names and structures, such as lacking a TXT reccord.
                 {
-                  Record[] records = MulticastDNSUtils
+                  List<Record> records = MulticastDNSUtils
                       .extractRecords(message, Section.ANSWER, Section.AUTHORITY,
                           Section.ADDITIONAL);
-                  for (int r = 0; r < records.length; r++) {
-                    if ((records[r].getType() == Type.SRV) && (records[r].getTTL() > 0)) {
-                      if (!srvRecord.equals(records[r])) {
+                  for (Record record : records) {
+                    if ((record.getType() == Type.SRV) && (record.getTTL() > 0)) {
+                      if (!srvRecord.equals(record)) {
                         // Another Service with this same name was found, so registration must fail.
                         throw new ServiceRegistrationException(
-                            ServiceRegistrationException.REASON.SERVICE_NAME_ALREADY_EXISTS,
+                            REASON.SERVICE_NAME_ALREADY_EXISTS,
                             "A service with name \"" + service.getName() + "\" already exists.");
                       }
                     }
@@ -382,7 +382,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       Set<Name> additionalNames = new LinkedHashSet<Name>();
       List<Record> ignoredRecords = new LinkedList<Record>();
       List<Record> filteredRecords = new LinkedList<Record>();
-      Record[] thatAnswers = MulticastDNSUtils
+      List<Record> thatAnswers = MulticastDNSUtils
           .extractRecords(message, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL);
       for (Record record : thatAnswers) {
         if (answersQuery(record)) {
@@ -533,7 +533,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
     boolean matchesBrowse(final Message message) {
       if (message != null) {
-        Record[] thatAnswers = MulticastDNSUtils
+        List<Record> thatAnswers = MulticastDNSUtils
             .extractRecords(message, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL);
 
         for (Record thatAnswer : thatAnswers) {
@@ -849,7 +849,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
 
   public static boolean hasMulticastDomains(final Message query) {
-    Record[] records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
+    List<Record> records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
     if (records != null) {
       for (Record record : records) {
         if (isMulticastDomain(record.getName())) {
@@ -862,7 +862,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
 
   public static boolean hasUnicastDomains(final Message query) {
-    Record[] records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
+    List<Record> records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
     if (records != null) {
       for (Record record : records) {
         if (!isMulticastDomain(record.getName())) {

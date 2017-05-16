@@ -195,8 +195,8 @@ public class Lookup extends MulticastDNSLookupBase {
     for (Message m : messages) {
       switch (m.getRcode()) {
         case Rcode.NOERROR:
-          records.addAll(Arrays.asList(MulticastDNSUtils
-              .extractRecords(m, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL)));
+          records.addAll(MulticastDNSUtils
+              .extractRecords(m, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL));
           break;
         case Rcode.NXDOMAIN:
           break;
@@ -213,7 +213,7 @@ public class Lookup extends MulticastDNSLookupBase {
       }
 
       public void receiveMessage(final Object id, final Message m) {
-        Record[] records = MulticastDNSUtils
+        List<Record> records = MulticastDNSUtils
             .extractRecords(m, Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY);
         for (Record r : records) {
           listener.receiveRecord(id, r);
@@ -229,9 +229,9 @@ public class Lookup extends MulticastDNSLookupBase {
   }
 
   public ServiceInstance[] lookupServices() throws IOException {
-    final List results = new ArrayList();
-    results.addAll(Arrays.asList(extractServiceInstances(lookupRecords())));
-    return (ServiceInstance[]) results.toArray(new ServiceInstance[results.size()]);
+    final List<ServiceInstance> results = new ArrayList();
+    results.addAll(Arrays.asList(extractServiceInstances(Arrays.asList(lookupRecords()))));
+    return  results.toArray(new ServiceInstance[results.size()]);
   }
 
   public static Record[] lookupRecords(Name name) throws IOException {

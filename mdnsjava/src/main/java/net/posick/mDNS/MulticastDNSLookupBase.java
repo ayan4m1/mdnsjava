@@ -229,7 +229,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     int type = -1;
     int dclass = -1;
     List list = new ArrayList();
-    Record[] records = MulticastDNSUtils.extractRecords(message, Section.QUESTION);
+    List<Record> records = MulticastDNSUtils.extractRecords(message, Section.QUESTION);
     for (Record r : records) {
       if (!list.contains(r)) {
         list.add(r.getName());
@@ -450,30 +450,24 @@ public abstract class MulticastDNSLookupBase implements Closeable {
 
 
   protected static ServiceInstance[] extractServiceInstances(final Message... messages) {
-    Record[] records = null;
+   List<Record> records = new ArrayList<>();
 
     for (Message message : messages) {
-      Record[] temp = MulticastDNSUtils
+      List<Record> temp = MulticastDNSUtils
           .extractRecords(message, Section.AUTHORITY, Section.ANSWER, Section.ADDITIONAL);
-      if (records == null) {
-        records = temp;
-      } else {
-        Record[] old = records;
-        records = new Record[records.length + temp.length];
-        System.arraycopy(old, 0, records, 0, records.length);
-        System.arraycopy(temp, 0, records, records.length, temp.length);
-      }
+      records.addAll(temp);
     }
 
     return extractServiceInstances(records);
   }
 
 
-  protected static ServiceInstance[] extractServiceInstances(final Record[] records) {
+  protected static ServiceInstance[] extractServiceInstances(final List<Record> records) {
     Map services = new HashMap();
 
     ServiceInstance service = null;
-    Arrays.sort(records, SERVICE_RECORD_SORTER);
+    records.sort(SERVICE_RECORD_SORTER);
+
     for (Record record : records) {
       switch (record.getType()) {
         case Type.SRV:
