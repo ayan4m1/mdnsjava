@@ -22,6 +22,7 @@ import net.posick.mDNS.utils.Misc;
 import net.posick.mDNS.utils.Wait;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.xbill.DNS.Cache;
 import org.xbill.DNS.Credibility;
 import org.xbill.DNS.Flags;
@@ -1002,7 +1003,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           if (cacheRecord.getTTL() > 0) {
             SetResponse response = cache
                 .lookupRecords(cacheRecord.getName(), cacheRecord.getType(), Credibility.ANY);
-            List<RRset> rrs = Arrays.asList(response.answers());
+
+            List<RRset> rrs = response.answers() == null ? new ArrayList<>() : Arrays.asList(response.answers());
             if (CollectionUtils.isNotEmpty(rrs)) {
               List<Record> cachedRecords = MulticastDNSUtils.extractRecords(rrs);
               if (CollectionUtils.isNotEmpty(cachedRecords)) {
