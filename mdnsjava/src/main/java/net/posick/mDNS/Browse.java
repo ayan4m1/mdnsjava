@@ -1,5 +1,6 @@
 package net.posick.mDNS;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
@@ -8,6 +9,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.IOUtils;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Flags;
 import org.xbill.DNS.Header;
@@ -25,7 +28,7 @@ public class Browse extends MulticastDNSLookupBase {
   static final Logger logger = Logger.getLogger(Browse.class.getName());
 
   private final Executors executors = Executors.newInstance();
-  protected List browseOperations = new LinkedList();
+  protected List<BrowseOperation>browseOperations = new LinkedList<>();
 
   /**
    * The Browse Operation manages individual browse sessions.  Retrying broadcasts.
@@ -33,7 +36,7 @@ public class Browse extends MulticastDNSLookupBase {
    *
    * @author Steve Posick
    */
-  protected class BrowseOperation implements ResolverListener, Runnable {
+  protected class BrowseOperation implements ResolverListener, Runnable, Closeable {
     private int broadcastDelay = 0;
 
     private ListenerProcessor<ResolverListener> listenerProcessor =
@@ -122,15 +125,16 @@ public class Browse extends MulticastDNSLookupBase {
         lastBroadcast = System.currentTimeMillis();
       }
 
+
+      broadcastDelay = broadcastDelay > 0 ? Math.min(broadcastDelay * 2, 3600) : 1;
+      executors.schedule(this, broadcastDelay, TimeUnit.SECONDS);
+
+      if (logger.isLoggable(Level.FINE)) {
+        logger.logp(Level.FINE, getClass().getName(), "run",
+            "Broadcasting Query for Browse Operation.");
+      }
+
       try {
-        broadcastDelay = broadcastDelay > 0 ? Math.min(broadcastDelay * 2, 3600) : 1;
-        executors.schedule(this, broadcastDelay, TimeUnit.SECONDS);
-
-        if (logger.isLoggable(Level.FINE)) {
-          logger.logp(Level.FINE, getClass().getName(), "run",
-              "Broadcasting Query for Browse Operation.");
-        }
-
         for (Message query : queries) {
           querier.broadcast((Message) query.clone(), false);
         }
@@ -140,11 +144,7 @@ public class Browse extends MulticastDNSLookupBase {
     }
 
     public void close() {
-      try {
-        listenerProcessor.close();
-      } catch (IOException e) {
-        // ignore
-      }
+      IOUtils.closeQuietly(listenerProcessor);
     }
   }
 
@@ -189,7 +189,7 @@ public class Browse extends MulticastDNSLookupBase {
       throw new NullPointerException("Error sending asynchronous query, listener is null!");
     }
 
-    if (queries == null || queries.size() == 0) {
+    if (CollectionUtils.isEmpty(queries)) {
       throw new NullPointerException("Error sending asynchronous query, No queries specified!");
     }
 
@@ -201,13 +201,6 @@ public class Browse extends MulticastDNSLookupBase {
   }
 
   public void close() throws IOException {
-    for (Object o : browseOperations) {
-      BrowseOperation browseOperation = (BrowseOperation) o;
-      try {
-        browseOperation.close();
-      } catch (Exception e) {
-        // ignore
-      }
-    }
+    browseOperations.forEach(IOUtils::closeQuietly);
   }
 }

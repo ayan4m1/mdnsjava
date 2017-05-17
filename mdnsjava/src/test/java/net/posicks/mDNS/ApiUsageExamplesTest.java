@@ -3,10 +3,13 @@ package net.posicks.mDNS;
 import static org.junit.Assert.fail;
 
 import java.net.InetAddress;
+import java.util.List;
+import java.util.Set;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
 import net.posick.mDNS.Lookup;
+import net.posick.mDNS.Lookup.Domain;
 import net.posick.mDNS.Lookup.RecordListener;
 import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
@@ -44,7 +47,7 @@ public class ApiUsageExamplesTest {
         Constants.REGISTRATION_DOMAIN_NAME, Constants.DEFAULT_BROWSE_DOMAIN_NAME,
         Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
 
-    Lookup.Domain[] domains = lookup.lookupDomains();
+    Set<Domain> domains = lookup.lookupDomains();
     for (Lookup.Domain domain : domains) {
       System.out.println(domain);
     }
@@ -64,7 +67,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(serviceName);
-      ServiceInstance[] services = lookup.lookupServices();
+      List<ServiceInstance> services = lookup.lookupServices();
       for (ServiceInstance service : services) {
         System.out.println(service);
       }
@@ -129,7 +132,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(SERVICE_NAME, Type.ANY, DClass.IN);
-      Record[] records = lookup.lookupRecords();
+      List<Record> records = lookup.lookupRecords();
       for (Record record : records) {
         System.out.println(record);
       }

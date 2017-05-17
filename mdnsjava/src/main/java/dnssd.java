@@ -3,8 +3,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
@@ -15,6 +17,7 @@ import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
 import net.posick.mDNS.ServiceName;
 import net.posick.mDNS.utils.ExecutionTimer;
+import org.apache.commons.collections4.CollectionUtils;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
@@ -90,8 +93,8 @@ public class dnssd {
           Name[] browseDomains;
           ArrayList domainNames;
           Name[] serviceTypes;
-          Domain[] domains = null;
-          Record[] records = null;
+          Set<Domain> domains = null;
+          List<Record> records = null;
           int type = Type.ANY;
           int dclass = DClass.ANY;
           char option = temp.charAt(temp.length() - 1);
@@ -108,7 +111,7 @@ public class dnssd {
                 lookup.close();
               }
               System.out.println("Registration Domains:");
-              dnssd.printArray(domains, "\t%s\n");
+              dnssd.printCollection(domains, "\t%s\n");
               System.out.println("\n" + timingBuilder.toString() + " - took " + ExecutionTimer
                   ._took(TimeUnit.SECONDS) + " seconds.");
               break;
@@ -123,7 +126,7 @@ public class dnssd {
                 lookup.close();
               }
               System.out.println("Browse Domains:");
-              dnssd.printArray(domains, "\t%s\n");
+              dnssd.printCollection(domains, "\t%s\n");
               System.out.println("\n" + timingBuilder.toString() + " - took " + ExecutionTimer
                   ._took(TimeUnit.SECONDS) + " seconds.");
               break;
@@ -145,10 +148,10 @@ public class dnssd {
                   lookup.close();
                 }
 
-                if (domains != null && domains.length > 0) {
-                  for (int index = 0; index < domains.length; index++) {
-                    if (domains[index] != null && !domainNames.contains(domains[index])) {
-                      domainNames.add(domains[index].getName());
+                if (CollectionUtils.isNotEmpty(domains)) {
+                  for (Domain domain : domains) {
+                    if (!domainNames.contains(domain.getName())) {
+                      domainNames.add(domain.getName());
                     }
                   }
                 }
@@ -227,10 +230,10 @@ public class dnssd {
                   lookup.close();
                 }
 
-                if (domains != null && domains.length > 0) {
-                  for (int index = 0; index < domains.length; index++) {
-                    if (domains[index] != null && !domainNames.contains(domains[index])) {
-                      domainNames.add(domains[index].getName());
+                if (CollectionUtils.isNotEmpty(domains)) {
+                  for (Domain domain : domains) {
+                    if (!domainNames.contains(domain)) {
+                      domainNames.add(domain.getName());
                     }
                   }
                 }
@@ -254,7 +257,7 @@ public class dnssd {
               System.out.println("Services Found:");
               lookup = new Lookup(serviceTypes);
               try {
-                dnssd.printArray(lookup.lookupServices(), "\t%s\n");
+                dnssd.printCollection(lookup.lookupServices(), "\t%s\n");
               } finally {
                 lookup.close();
               }
@@ -341,7 +344,7 @@ public class dnssd {
                         + ", DClass: " + DClass.string(dclass));
                 System.out.println();
                 System.out.println("Resource Records Found:");
-                dnssd.printArray(records, "\t%s\n");
+                dnssd.printCollection(records, "\t%s\n");
               } finally {
                 lookup.close();
               }
@@ -384,7 +387,7 @@ public class dnssd {
               System.out.println(lookup.getNames());
               System.out.println();
               System.out.println("Resource Records Found:");
-              dnssd.printArray(records, "\t%s\n");
+              dnssd.printCollection(records, "\t%s\n");
               break;
             case 'V':
               System.out.println("\n" + dnssd.VERSION);
@@ -408,6 +411,10 @@ public class dnssd {
     System.exit(0);
   }
 
+
+  private static void printCollection(final Collection<? extends Object> collection, final String... format) {
+    printArray(collection.toArray(new Object[collection.size()]), format);
+  }
 
   private static void printArray(final Object[] array, final String... format) {
     if (array != null && format != null && array.length > 0 && format.length > 0) {

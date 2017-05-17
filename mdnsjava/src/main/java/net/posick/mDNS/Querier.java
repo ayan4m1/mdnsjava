@@ -35,8 +35,7 @@ public interface Querier extends Resolver, Closeable {
    * per RFC 6762.
    * @throws IOException If an exception occurs during the broadcast.
    */
-  void broadcast(Message message, boolean addKnownAnswers)
-      throws IOException;
+  void broadcast(Message message, boolean addKnownAnswers) throws IOException;
 
   /**
    * Returns the Multicast domains pertinent for this Responder.

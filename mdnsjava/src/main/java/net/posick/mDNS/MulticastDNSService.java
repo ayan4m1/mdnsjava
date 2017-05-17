@@ -1,5 +1,7 @@
 package net.posick.mDNS;
 
+import com.google.common.collect.Lists;
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -22,6 +24,7 @@ import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.Misc;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.io.IOUtils;
 import org.xbill.DNS.AAAARecord;
@@ -277,7 +280,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       }
 
       long endTime = System.currentTimeMillis() + 10000;
-      ServiceInstance[] instances = null;
+      List<ServiceInstance> instances = null;
       while ((instances == null) && (System.currentTimeMillis() < endTime)) {
         if (replies.size() == 0) {
           try {
@@ -294,27 +297,23 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         try {
           instances = lookup.lookupServices();
 
-          if ((instances != null) && (instances.length > 0)) {
+          if (CollectionUtils.isNotEmpty(instances)) {
             if (logger.isLoggable(Level.FINE)) {
               logger.logp(Level.FINE, getClass().getName(), "register", "Response received.");
             }
 
-            if (instances.length > 1) {
+            if (instances.size() > 1) {
               logger.logp(Level.WARNING, getClass().getName(), "register",
                   "Warning: More than one service with the name \"" + shortSRVName
                       + "\" was registered.");
               throw new IOException(
-                  "Too many services returned! + Instances: " + Arrays.toString(instances));
+                  "Too many services returned! + Instances: " + instances);
             }
 
-            return instances[0];
+            return instances.get(0);
           }
         } finally {
-          try {
-            lookup.close();
-          } catch (IOException e) {
-            // ignore
-          }
+          IOUtils.closeQuietly(lookup);
         }
       }
 
@@ -331,15 +330,10 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
    *
    * @author Steve Posick
    */
-  protected class ServiceDiscoveryOperation implements ResolverListener {
-
+  protected class ServiceDiscoveryOperation implements ResolverListener, Closeable {
     private final Browse browser;
-
-    private final ListenerProcessor<DNSSDListener> listenerProcessor = new ListenerProcessor<DNSSDListener>(
-        DNSSDListener.class);
-
-    private final Map services = new LinkedHashMap();
-
+    private final ListenerProcessor<DNSSDListener> listenerProcessor = new ListenerProcessor<>(DNSSDListener.class);
+    private final Map<Name, ServiceInstance> services = new LinkedHashMap<>();
 
     ServiceDiscoveryOperation(final Browse browser) {
       this(browser, null);
@@ -354,26 +348,14 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       }
     }
 
-
     public void close() {
-      try {
-        listenerProcessor.close();
-      } catch (IOException e) {
-        // ignore
-      }
-
-      try {
-        browser.close();
-      } catch (IOException e) {
-        // ignore
-      }
+      IOUtils.closeQuietly(listenerProcessor);
+      IOUtils.closeQuietly(browser);
     }
-
 
     public void handleException(final Object id, final Exception e) {
       listenerProcessor.getDispatcher().handleException(id, e);
     }
-
 
     public void receiveMessage(final Object id, final Message message) {
       if (message == null) {
@@ -532,71 +514,55 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       return browser;
     }
 
-
     boolean matchesBrowse(final Message message) {
       if (message != null) {
         List<Record> thatAnswers = MulticastDNSUtils
             .extractRecords(message, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL);
-
-        for (Record thatAnswer : thatAnswers) {
-          if (answersQuery(thatAnswer)) {
-            return true;
-          }
-        }
+        return thatAnswers.stream().anyMatch(this::answersQuery);
       }
 
       return false;
     }
 
-
     DNSSDListener registerListener(final DNSSDListener listener) {
       return listenerProcessor.registerListener(listener);
     }
-
 
     DNSSDListener unregisterListener(final DNSSDListener listener) {
       return listenerProcessor.unregisterListener(listener);
     }
   }
 
-
   protected class Unregister {
-
     private final ServiceName serviceName;
-
 
     protected Unregister(final ServiceInstance service) {
       this(service.getName());
     }
-
 
     protected Unregister(final ServiceName serviceName) {
       super();
       this.serviceName = serviceName;
     }
 
-
-    protected void close()
-        throws IOException {
+    protected void close() throws IOException {
     }
 
-
-    protected boolean unregister()
-        throws IOException {
-            /*
-             * Steps to Registering a Service.
-             * 
-             * 1. Send a standard Query Response containing the service records, Opcode: QUERY, Flags: Response, Authoritative, NO ERROR
-             * a. Add PTR record to ANSWER section. TTL: 0 Ex. _mdc._tcp.local. IN PTR Test._mdc._tcp.local.
-             * b. Repeat 3 queries with a 2 second delay between each query response.
-             */
+    protected boolean unregister() throws IOException {
+    /*
+     * Steps to Registering a Service.
+     *
+     * 1. Send a standard Query Response containing the service records, Opcode: QUERY, Flags: Response, Authoritative, NO ERROR
+     * a. Add PTR record to ANSWER section. TTL: 0 Ex. _mdc._tcp.local. IN PTR Test._mdc._tcp.local.
+     * b. Repeat 3 queries with a 2 second delay between each query response.
+     */
       String domain = serviceName.getDomain();
       Name fullTypeName = new Name(serviceName.getFullType() + "." + domain);
       Name typeName = new Name(serviceName.getType() + "." + domain);
       Name shortSRVName = serviceName.getServiceRRName();
 
-      ArrayList<Record> records = new ArrayList<Record>();
-      ArrayList<Record> additionalRecords = new ArrayList<Record>();
+      List<Record> records = new ArrayList<>();
+      List<Record> additionalRecords = new ArrayList<>();
 
       records.add(new PTRRecord(typeName, DClass.IN, 0, shortSRVName));
       if (!fullTypeName.equals(typeName)) {
@@ -604,19 +570,13 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       }
 
       Update update = new Update(new Name(domain));
-      for (Record record : records) {
-        update.add(record);
-      }
-
-      for (Record record : additionalRecords) {
-        update.addRecord(record, Section.ADDITIONAL);
-      }
+      records.forEach(update::add);
+      additionalRecords.forEach(record -> update.addRecord(record, Section.ADDITIONAL));
 
       // Updates are sent at least 2 times, one second apart, as per RFC 6762 Section 8.3
       ResolverListener resolverListener = new ResolverListener() {
         public void handleException(final Object id, final Exception e) {
         }
-
 
         public void receiveMessage(final Object id, final Message m) {
         }
@@ -639,12 +599,10 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       Lookup lookup = new Lookup(Arrays.asList(typeName, fullTypeName), Type.PTR, DClass.ANY);
       try {
         boolean found = false;
-        Record[] results = lookup.lookupRecords();
-        if (results != null) {
-          for (Record record : results) {
-            if (shortSRVName.equals(((PTRRecord) record).getTarget())) {
-              found = true;
-            }
+        List<Record> results = ListUtils.emptyIfNull(lookup.lookupRecords());
+        for (Record record : results) {
+          if (shortSRVName.equals(((PTRRecord) record).getTarget())) {
+            found = true;
           }
         }
         return !found;
@@ -654,28 +612,16 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-
   protected Executors executors = Executors.newInstance();
 
+  protected List<ServiceDiscoveryOperation> discoveryOperations = new ArrayList<>();
 
-  protected ArrayList<ServiceDiscoveryOperation> discoveryOperations = new ArrayList<ServiceDiscoveryOperation>();
-
-
-  public MulticastDNSService()
-      throws IOException {
+  public MulticastDNSService() throws IOException {
     super();
   }
 
-
-  public void close()
-      throws IOException {
-    for (ServiceDiscoveryOperation discoveryOperation : discoveryOperations) {
-      try {
-        discoveryOperation.close();
-      } catch (Exception e) {
-        // ignore
-      }
-    }
+  public void close() throws IOException {
+    discoveryOperations.forEach(IOUtils::closeQuietly);
   }
 
   public Set<Domain> getBrowseDomains(final Set<Name> searchPath) {
@@ -761,8 +707,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
    * @return true, if the Service Discovery Browse Operation was successfully stopped, otherwise
    * false.
    */
-  public boolean stopServiceDiscovery(final Object id)
-      throws IOException {
+  public boolean stopServiceDiscovery(final Object id) throws IOException {
     synchronized (discoveryOperations) {
       int pos = discoveryOperations.indexOf(id);
       if (pos >= 0) {
@@ -783,9 +728,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     return false;
   }
 
-
-  public boolean unregister(final ServiceInstance service)
-      throws IOException {
+  public boolean unregister(final ServiceInstance service) throws IOException {
     Unregister unregister = new Unregister(service);
     try {
       return unregister.unregister();
@@ -794,9 +737,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-
-  public boolean unregister(final ServiceName name)
-      throws IOException {
+  public boolean unregister(final ServiceName name) throws IOException {
     Unregister unregister = new Unregister(name);
     try {
       return unregister.unregister();
@@ -805,10 +746,8 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-
   protected Set<Domain> getDomains(final List<String> names, final List<Name> path) {
     Set<Domain> results = new LinkedHashSet<Domain>();
-
     Stack<List<Name>> stack = new Stack<>();
     stack.push(path);
 
@@ -820,8 +759,8 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         lookup = new Lookup(names.toArray(new String[names.size()]));
         lookup.setSearchPath(searchPath);
         lookup.setQuerier(querier);
-        Domain[] domains = lookup.lookupDomains();
-        if ((domains != null) && (domains.length > 0)) {
+        Set<Domain> domains = lookup.lookupDomains();
+        if (CollectionUtils.isNotEmpty(domains)) {
           List<Name> newDomains = new ArrayList<>();
           for (Domain domain : domains) {
             if (!results.contains(domain)) {

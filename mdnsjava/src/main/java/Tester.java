@@ -1,12 +1,13 @@
 import java.net.InetAddress;
+import java.util.List;
 import net.posick.mDNS.Lookup;
 import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
 import net.posick.mDNS.ServiceName;
+import org.apache.commons.collections4.CollectionUtils;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.Type;
-
 
 public class Tester {
 
@@ -40,8 +41,8 @@ public class Tester {
         boolean hostnameResolves = false;
 
         Lookup lookup = new Lookup(fqn);
-        Record[] rrs = lookup.lookupRecords();
-        if ((rrs != null) && (rrs.length > 0)) {
+        List<Record> rrs = lookup.lookupRecords();
+        if (CollectionUtils.isNotEmpty(rrs)) {
           outer:
           for (Record rr : rrs) {
             switch (rr.getType()) {
