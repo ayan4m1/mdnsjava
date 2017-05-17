@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.commons.io.IOUtils;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.TextParseException;
 
@@ -44,13 +45,7 @@ public class ServiceName extends Name {
       Logger.getAnonymousLogger()
           .log(Level.FINE, "Could not find Protocols file \"" + url + "\"", e);
     } finally {
-      if (data != null) {
-        try {
-          data.close();
-        } catch (IOException e) {
-          // ignore
-        }
-      }
+      IOUtils.closeQuietly(data);
     }
     PROTOCOLS = protocols.toArray(new byte[protocols.size()][]);
   }

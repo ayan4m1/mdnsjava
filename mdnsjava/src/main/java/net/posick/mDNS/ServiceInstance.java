@@ -20,40 +20,27 @@ public class ServiceInstance implements Serializable {
   private static final long serialVersionUID = 201210181454L;
 
   private final List pointers = new ArrayList();
-
   private final ServiceName name;
-
   private Name host;
-
   private List addresses = new ArrayList();
-
   private int priority;
-
   private int weight;
-
   private int port;
-
   private final Map textAttributes = new LinkedHashMap();
-
   private String niceText;
-
   private String[] text;
 
-
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
-      final int port, Name host, String... txtRecords)
-      throws UnknownHostException {
+      final int port, Name host, String... txtRecords) throws UnknownHostException {
     this(name, priority, weight, port, host, new InetAddress[]{InetAddress.getLocalHost()},
         txtRecords);
   }
-
 
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
       final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
       final Collection textRecords) {
     this(name, priority, weight, port, host/* , ttl */, addresses, parseTextRecords(textRecords));
   }
-
 
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
       final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
@@ -81,13 +68,11 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
       final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
       final String... textRecords) {
     this(name, priority, weight, port, host/* , ttl */, addresses, parseTextRecords(textRecords));
   }
-
 
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
       final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
@@ -95,13 +80,11 @@ public class ServiceInstance implements Serializable {
     this(name, priority, weight, port, host/* , ttl */, addresses, parseTextRecords(textRecords));
   }
 
-
   public ServiceInstance(final SRVRecord srv)
       throws TextParseException {
     this(new ServiceName(srv.getName()), srv.getPriority(), srv.getWeight(), srv.getPort(),
         srv.getTarget(), null, (Map) null);
   }
-
 
   public void addAddress(final InetAddress address) {
     if (!addresses.contains(address)) {
@@ -109,13 +92,11 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-
   public void addPointer(final Name pointer) {
     if (!pointers.contains(pointer)) {
       pointers.add(pointer);
     }
   }
-
 
   public void addText(final Map textRecords) {
     if (textRecords != null) {
@@ -123,11 +104,9 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-
   public void addText(final String name, final String value) {
     textAttributes.put(name, value);
   }
-
 
   public void addTextRecords(final TXTRecord... textRecords) {
     Map newTextRecords = parseTextRecords(textRecords);
@@ -136,24 +115,14 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-
   public InetAddress[] getAddresses() {
     return (addresses == null) || (addresses.size() == 0) ? null
         : (InetAddress[]) addresses.toArray(new InetAddress[addresses.size()]);
   }
 
-
   public Name getHost() {
     return host;
   }
-    
-    
-    /*
-     * public long getTTL()
-     * {
-     * return ttl;
-     * }
-     */
 
   public ServiceName getName() {
     return name;
@@ -164,47 +133,38 @@ public class ServiceInstance implements Serializable {
     return niceText;
   }
 
-
   public Name[] getPointers() {
     return (pointers == null) || (pointers.size() == 0) ? null
         : (Name[]) pointers.toArray(new Name[pointers.size()]);
   }
 
-
   public int getPort() {
     return port;
   }
-
 
   public int getPriority() {
     return priority;
   }
 
-
   public String[] getText() {
     return text;
   }
-
 
   public Map getTextAttributes() {
     return textAttributes;
   }
 
-
   public int getWeight() {
     return weight;
   }
-
 
   public void removeAddress(final InetAddress address) {
     addresses.remove(address);
   }
 
-
   public void removePointer(final Name pointer) {
     pointers.remove(pointer);
   }
-
 
   public void removeTextRecords(final TXTRecord... textRecords) {
     Map removedTextRecords = parseTextRecords(textRecords);

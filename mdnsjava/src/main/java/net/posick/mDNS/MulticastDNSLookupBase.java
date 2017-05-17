@@ -409,7 +409,6 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     return defaultSearchPath;
   }
 
-
   /**
    * Sets the default mDNS Querier to be used as the default by future Lookups.
    **/
@@ -417,24 +416,13 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     defaultQuerier = querier;
   }
 
-
-  /**
-   * Sets the search path to be used as the default by future Lookups.
-   *
-   * @param domains The default search path.
-   */
-//  public static synchronized void setDefaultSearchPath(final List<Name> domains) {
-//    defaultSearchPath = domains;
-//  }
-
   /**
    * Sets the search path that will be used as the default by future Lookups.
    *
    * @param domains The default search path.
    * @throws TextParseException A name in the array is not a valid DNS name.
    */
-  public static synchronized void setDefaultSearchPath(final List<String> domains)
-      throws TextParseException {
+  public static synchronized void setDefaultSearchPath(final List<String> domains) throws TextParseException {
     if (domains == null) {
       defaultSearchPath = null;
       return;
@@ -463,7 +451,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
 
 
   protected static ServiceInstance[] extractServiceInstances(final List<Record> records) {
-    Map services = new HashMap();
+    Map<Name, ServiceInstance> services = new HashMap();
 
     ServiceInstance service = null;
     records.sort(SERVICE_RECORD_SORTER);
@@ -481,7 +469,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
           break;
         case Type.PTR:
           PTRRecord ptr = (PTRRecord) record;
-          service = (ServiceInstance) services.get(ptr.getTarget());
+          service = services.get(ptr.getTarget());
           if (service != null) {
             if (ptr.getTTL() > 0) {
               service.addPointer(ptr.getName());
@@ -492,7 +480,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
           break;
         case Type.TXT:
           TXTRecord txt = (TXTRecord) record;
-          service = (ServiceInstance) services.get(txt.getName());
+          service =  services.get(txt.getName());
           if (service != null) {
             if (txt.getTTL() > 0) {
               service.addTextRecords(txt);
@@ -503,26 +491,25 @@ public abstract class MulticastDNSLookupBase implements Closeable {
           break;
         case Type.A:
           ARecord a = (ARecord) record;
-          for (Object o : services.values()) {
-            service = (ServiceInstance) o;
-            if (a.getName().equals(service.getHost())) {
+          for (ServiceInstance serviceInstance : services.values()) {
+
+            if (a.getName().equals(serviceInstance.getHost())) {
               if (a.getTTL() > 0) {
-                service.addAddress(a.getAddress());
+                serviceInstance.addAddress(a.getAddress());
               } else {
-                service.removeAddress(a.getAddress());
+                serviceInstance.removeAddress(a.getAddress());
               }
             }
           }
           break;
         case Type.AAAA:
           AAAARecord aaaa = (AAAARecord) record;
-          for (Object o : services.values()) {
-            service = (ServiceInstance) o;
-            if (aaaa.getName().equals(service.getHost())) {
+          for (ServiceInstance serviceInstance : services.values()) {
+            if (aaaa.getName().equals(serviceInstance.getHost())) {
               if (aaaa.getTTL() > 0) {
-                service.addAddress(aaaa.getAddress());
+                serviceInstance.addAddress(aaaa.getAddress());
               } else {
-                service.removeAddress(aaaa.getAddress());
+                serviceInstance.removeAddress(aaaa.getAddress());
               }
             }
           }
@@ -531,6 +518,6 @@ public abstract class MulticastDNSLookupBase implements Closeable {
       service = null;
     }
 
-    return (ServiceInstance[]) services.values().toArray(new ServiceInstance[services.size()]);
+    return  services.values().toArray(new ServiceInstance[services.size()]);
   }
 }

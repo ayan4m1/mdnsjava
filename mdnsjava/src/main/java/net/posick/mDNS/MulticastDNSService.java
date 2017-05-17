@@ -52,29 +52,22 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       Options.check("mdns_verbose") || Options.check("verbose"));
 
   protected class Register {
-
     private final ServiceInstance service;
 
-
-    protected Register(final ServiceInstance service)
-        throws UnknownHostException {
+    protected Register(final ServiceInstance service) throws UnknownHostException {
       super();
       this.service = service;
     }
 
-
-    protected void close()
-        throws IOException {
+    protected void close() throws IOException {
     }
-
 
     /**
      * Registers the Service.
      *
      * @return The Service Instances actually Registered
      */
-    protected ServiceInstance register()
-        throws IOException {
+    protected ServiceInstance register() throws IOException {
       // TODO: Implement Probing and Name Conflict Resolution as per RFC 6762 Section 8.
             /*
              * Steps to Registering a Service.
@@ -170,16 +163,14 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
       ServiceName serviceName = service.getName();
       Name domain = new Name(serviceName.getDomain());
-      final Update[] updates = new Update[]{new Update(domain),
-          new Update(domain)};
+      final Update[] updates = new Update[]{new Update(domain), new Update(domain)};
       Name fullTypeName = new Name(serviceName.getFullType() + "." + domain);
       Name typeName = new Name(serviceName.getType() + "." + domain);
       Name shortSRVName = serviceName.getServiceRRName();
 
       try {
-
-        ArrayList<Record> records = new ArrayList<Record>();
-        ArrayList<Record> additionalRecords = new ArrayList<Record>();
+        List<Record> records = new ArrayList<>();
+        List<Record> additionalRecords = new ArrayList<>();
 
         InetAddress[] addresses = service.getAddresses();
 
@@ -227,13 +218,11 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         additionalRecords.clear();
 
         // Register Service Types in a separate request!
-        records.add(
-            new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain), DClass.IN, Constants.DEFAULT_SRV_TTL,
-                typeName));
+        records.add(new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain),
+            DClass.IN, Constants.DEFAULT_SRV_TTL, typeName));
         if (!fullTypeName.equals(typeName)) {
-          records.add(
-              new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain), DClass.IN, Constants.DEFAULT_SRV_TTL,
-                  fullTypeName));
+          records.add(new PTRRecord(new Name(Constants.SERVICES_NAME + "." + domain),
+              DClass.IN, Constants.DEFAULT_SRV_TTL, fullTypeName));
         }
 
         for (Record record : records) {
@@ -248,7 +237,6 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
               replies.notifyAll();
             }
           }
-
 
           public void receiveMessage(final Object id, final Message m) {
             synchronized (replies) {
@@ -306,8 +294,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
               logger.logp(Level.WARNING, getClass().getName(), "register",
                   "Warning: More than one service with the name \"" + shortSRVName
                       + "\" was registered.");
-              throw new IOException(
-                  "Too many services returned! + Instances: " + instances);
+              throw new IOException("Too many services returned! + Instances: " + instances);
             }
 
             return instances.get(0);
@@ -323,7 +310,6 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-
   /**
    * The Browse Operation manages individual browse sessions. Retrying broadcasts.
    * Refer to the mDNS specification [RFC 6762]
@@ -338,7 +324,6 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     ServiceDiscoveryOperation(final Browse browser) {
       this(browser, null);
     }
-
 
     ServiceDiscoveryOperation(final Browse browser, final DNSSDListener listener) {
       this.browser = browser;

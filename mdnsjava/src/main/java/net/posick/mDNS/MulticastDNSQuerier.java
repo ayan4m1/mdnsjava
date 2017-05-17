@@ -6,8 +6,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.Misc;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.IOUtils;
 import org.xbill.DNS.ExtendedResolver;
 import org.xbill.DNS.Flags;
 import org.xbill.DNS.Header;
@@ -44,7 +47,7 @@ public class MulticastDNSQuerier implements Querier {
 
     private ResolverListener listener = null;
 
-    private final LinkedList responses = new LinkedList();
+    private final List<Response> responses = new LinkedList<>();
 
     private int requestsSent;
 
@@ -61,67 +64,52 @@ public class MulticastDNSQuerier implements Querier {
       mdnsVerbose = Options.check("mdns_verbose");
     }
 
-
-    public Message getResponse(final int timeout)
-        throws IOException {
+    public Message getResponse(final int timeout) throws Exception {
       Message response = (Message) query.clone();
       Header header = response.getHeader();
-      try {
-        Message[] messages = getResults(true, timeout);
 
-        boolean found = false;
-        if ((messages != null) && (messages.length > 0)) {
-          header.setRcode(Rcode.NOERROR);
-          header.setOpcode(Opcode.QUERY);
-          header.setFlag(Flags.QR);
+      List<Message> messages = getResults(true, timeout);
+      boolean found = false;
+      if (CollectionUtils.isNotEmpty(messages)) {
+        header.setRcode(Rcode.NOERROR);
+        header.setOpcode(Opcode.QUERY);
+        header.setFlag(Flags.QR);
 
-          for (Message message : messages) {
-            Header h = message.getHeader();
-            if (h.getRcode() == Rcode.NOERROR) {
-              if (h.getFlag(Flags.AA)) {
-                header.setFlag(Flags.AA);
-              }
+        for (Message message : messages) {
+          Header h = message.getHeader();
+          if (h.getRcode() == Rcode.NOERROR) {
+            if (h.getFlag(Flags.AA)) {
+              header.setFlag(Flags.AA);
+            }
 
-              if (h.getFlag(Flags.AD)) {
-                header.setFlag(Flags.AD);
-              }
+            if (h.getFlag(Flags.AD)) {
+              header.setFlag(Flags.AD);
+            }
 
-              for (int section : new int[]{Section.ANSWER,
-                  Section.ADDITIONAL,
-                  Section.AUTHORITY}) {
-                Record[] records = message.getSectionArray(section);
-                if ((records != null) && (records.length > 0)) {
-                  for (Record record : records) {
-                    if (!response.findRecord(record)) {
-                      response.addRecord(record, section);
-                      found = true;
-                    }
+            for (int section : new int[]{Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY}) {
+              Record[] records = message.getSectionArray(section);
+              if ((records != null) && (records.length > 0)) {
+                for (Record record : records) {
+                  if (!response.findRecord(record)) {
+                    response.addRecord(record, section);
+                    found = true;
                   }
                 }
               }
             }
           }
         }
-
-        if (!found) {
-          header.setRcode(Rcode.NXDOMAIN);
-        }
-
-        return response;
-      } catch (Exception e) {
-        if (e instanceof IOException) {
-          throw (IOException) e;
-        } else {
-          IOException ioe = new IOException(e.getMessage());
-          ioe.setStackTrace(e.getStackTrace());
-          throw ioe;
-        }
       }
+
+      if (!found) {
+        header.setRcode(Rcode.NXDOMAIN);
+      }
+
+      return response;
     }
 
 
-    public Message[] getResults(final boolean waitForResults, final int timeoutValue)
-        throws Exception {
+    public List<Message> getResults(final boolean waitForResults, final int timeoutValue) throws Exception {
       if (waitForResults) {
         long now = System.currentTimeMillis();
         long timeout = now + timeoutValue;
@@ -139,28 +127,21 @@ public class MulticastDNSQuerier implements Querier {
       }
 
       if (responses.size() > 0) {
-        LinkedList messages = new LinkedList();
-        LinkedList exceptions = new LinkedList();
+        List<Message> messages = responses.stream()
+            .filter(response -> !response.inError()).map(Response::getMessage).collect(Collectors.toList());
 
-        for (Object o : responses) {
-          Response response = (Response) o;
-          if (response.inError()) {
-            exceptions.add(response.getException());
-          } else {
-            messages.add(response.getMessage());
-          }
-        }
+        List<Exception> exceptions = responses.stream()
+            .filter(Response::inError).map(Response::getException).collect(Collectors.toList());
 
         if (messages.size() > 0) {
-          return (Message[]) messages.toArray(new Message[messages.size()]);
+          return messages;
         } else if (exceptions.size() > 0) {
-          throw (Exception) exceptions.get(0);
+          throw exceptions.get(0);
         }
       }
 
       return null;
     }
-
 
     public void handleException(final Object id, final Exception exception) {
       if ((requestIDs.size() != 0) && (!requestIDs.contains(id) || (this != id) || !equals(id))) {
@@ -184,23 +165,13 @@ public class MulticastDNSQuerier implements Querier {
       }
     }
 
-
     public boolean hasResults() {
       return responses.size() >= requestsSent;
     }
 
-
     public boolean inError() {
-      for (Object o : responses) {
-        Response response = (Response) o;
-        if (!response.inError()) {
-          return false;
-        }
-      }
-
-      return true;
+      return responses.stream().allMatch(Response::inError);
     }
-
 
     public void receiveMessage(final Object id, final Message message) {
       if ((requestIDs.size() == 0) || requestIDs.contains(id) || (this == id) || equals(id)
@@ -227,7 +198,6 @@ public class MulticastDNSQuerier implements Querier {
         logger.logp(Level.FINE, getClass().getName(), "receiveMessage", msg + "\n" + message);
       }
     }
-
 
     public Object start() {
       requestsSent = 0;
@@ -261,42 +231,32 @@ public class MulticastDNSQuerier implements Querier {
     }
   }
 
-
   protected static class Response {
-
     private Object id = null;
-
     private Message message = null;
-
     private Exception exception = null;
-
 
     protected Response(final Object id, final Exception exception) {
       this.id = id;
       this.exception = exception;
     }
 
-
     protected Response(final Object id, final Message message) {
       this.id = id;
       this.message = message;
     }
 
-
     public Exception getException() {
       return exception;
     }
-
 
     public Object getID() {
       return id;
     }
 
-
     public Message getMessage() {
       return message;
     }
-
 
     public boolean inError() {
       return exception != null;
@@ -323,18 +283,15 @@ public class MulticastDNSQuerier implements Querier {
       resolverListenerDispatcher.handleException(id, e);
     }
 
-
     public void receiveMessage(final Object id, final Message m) {
       resolverListenerDispatcher.receiveMessage(id, m);
     }
   };
 
-
   /**
    * Constructs a new IPv4 mDNS Querier using the default Unicast DNS servers for the system.
    */
-  public MulticastDNSQuerier()
-      throws IOException {
+  public MulticastDNSQuerier() throws IOException {
     this(true, false, new Resolver[]{new ExtendedResolver()});
   }
 
@@ -344,8 +301,7 @@ public class MulticastDNSQuerier implements Querier {
    *
    * @param ipv6 if IPv6 should be enabled.
    */
-  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6)
-      throws IOException {
+  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6) throws IOException {
     this(ipv4, ipv6, (Resolver[]) null);
   }
 
@@ -368,8 +324,7 @@ public class MulticastDNSQuerier implements Querier {
    * @param ipv6 if IPv6 should be enabled.
    * @param unicastResolvers The Unicast DNS Resolvers
    */
-  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6,
-      final Resolver[] unicastResolvers)
+  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6, final Resolver[] unicastResolvers)
       throws IOException {
     mdnsVerbose = Options.check("mdns_verbose");
 
@@ -393,8 +348,7 @@ public class MulticastDNSQuerier implements Querier {
         ipv4Responder = null;
         ipv4_exception = e;
         if (mdnsVerbose) {
-          logger
-              .log(Level.WARNING, "Error constructing IPv4 mDNS Responder - " + e.getMessage(), e);
+          logger.log(Level.WARNING, "Error constructing IPv4 mDNS Responder - " + e.getMessage(), e);
         }
       }
     }
@@ -407,8 +361,7 @@ public class MulticastDNSQuerier implements Querier {
         ipv6Responder = null;
         ipv6_exception = e;
         if (mdnsVerbose) {
-          logger
-              .log(Level.WARNING, "Error constructing IPv6 mDNS Responder - " + e.getMessage(), e);
+          logger.log(Level.WARNING, "Error constructing IPv6 mDNS Responder - " + e.getMessage(), e);
         }
       }
     }
@@ -437,8 +390,7 @@ public class MulticastDNSQuerier implements Querier {
   /**
    * {@inheritDoc}
    */
-  public void broadcast(final Message message, final boolean addKnown)
-      throws IOException {
+  public void broadcast(final Message message, final boolean addKnown) throws IOException {
     boolean success = false;
     IOException ex = null;
     for (Querier responder : multicastResponders) {
@@ -456,7 +408,6 @@ public class MulticastDNSQuerier implements Querier {
           resolverListenerDispatcher.handleException(id, e);
         }
 
-
         public void receiveMessage(final Object id, final Message m) {
           resolverListenerDispatcher.receiveMessage(id, m);
         }
@@ -469,16 +420,9 @@ public class MulticastDNSQuerier implements Querier {
   }
 
 
-  public void close()
-      throws IOException {
+  public void close() throws IOException {
     for (Querier querier : multicastResponders) {
-      try {
-        querier.close();
-      } catch (Exception e) {
-        if (mdnsVerbose) {
-          logger.log(Level.WARNING, "Error closing Responder: " + e.getMessage(), e);
-        }
-      }
+      IOUtils.closeQuietly(querier);
     }
   }
 
@@ -546,11 +490,14 @@ public class MulticastDNSQuerier implements Querier {
   /**
    * {@inheritDoc}
    */
-  public Message send(final Message query)
-      throws IOException {
+  public Message send(final Message query) throws IOException {
     Resolution res = new Resolution(this, query, null);
     res.start();
-    return res.getResponse(DEFAULT_TIMEOUT);
+    try {
+      return res.getResponse(DEFAULT_TIMEOUT);
+    } catch (Exception e ) {
+      throw new IOException(e);
+    }
   }
 
 

@@ -46,7 +46,7 @@ public class Misc {
         count = 2;
         codePoint = 0;
         continue;
-      } else if (escape == true && count < 0) {
+      } else if (escape && count < 0) {
         escape = false;
         output.append((char) codePoint);
       }
@@ -62,13 +62,6 @@ public class Misc {
     }
 
     return output.toString();
-  }
-
-
-  public static Level setGlobalLogLevel(Level level) {
-    Level result = globalLogger.getLevel();
-    globalLogger.setLevel(Level.FINE);
-    return result;
   }
 
 
