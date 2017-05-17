@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.logging.Level;
 import org.xbill.DNS.Options;
@@ -116,11 +117,11 @@ public class DatagramProcessor extends NetworkProcessor {
         ((MulticastSocket) socket).leaveGroup(address);
       } catch (SecurityException e) {
         logger.log(Level.WARNING,
-            "A Security error occurred while leaving Multicast Group \"" + address.getAddress()
+            "A Security error occurred while leaving Multicast Group \"" + Arrays.toString(address.getAddress())
                 + "\" - " + e.getMessage(), e);
       } catch (Exception e) {
         logger.log(Level.WARNING,
-            "Error leaving Multicast Group \"" + address.getAddress() + "\" - " + e.getMessage(),
+            "Error leaving Multicast Group \"" + Arrays.toString(address.getAddress()) + "\" - " + e.getMessage(),
             e);
       }
     }

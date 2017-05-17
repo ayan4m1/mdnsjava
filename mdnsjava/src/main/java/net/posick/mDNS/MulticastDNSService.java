@@ -22,6 +22,8 @@ import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.Misc;
+import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.io.IOUtils;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
 import org.xbill.DNS.DClass;
@@ -820,11 +822,11 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         lookup.setQuerier(querier);
         Domain[] domains = lookup.lookupDomains();
         if ((domains != null) && (domains.length > 0)) {
-          List<Name> newDomains = new ArrayList<Name>();
-          for (int index = 0; index < domains.length; index++) {
-            if (!results.contains(domains[index].getName())) {
-              newDomains.add(domains[index].getName());
-              results.add(domains[index]);
+          List<Name> newDomains = new ArrayList<>();
+          for (Domain domain : domains) {
+            if (!results.contains(domain)) {
+              newDomains.add(domain.getName());
+              results.add(domain);
             }
           }
           if (newDomains.size() > 0) {
@@ -834,13 +836,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       } catch (IOException e) {
         logger.log(Level.SEVERE, "Error getting domains - " + e.getMessage(), e);
       } finally {
-        if (lookup != null) {
-          try {
-            lookup.close();
-          } catch (Exception e) {
-            // ignore
-          }
-        }
+        IOUtils.closeQuietly(lookup);
       }
     }
 
@@ -849,44 +845,23 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
 
 
   public static boolean hasMulticastDomains(final Message query) {
-    List<Record> records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
-    if (records != null) {
-      for (Record record : records) {
-        if (isMulticastDomain(record.getName())) {
-          return true;
-        }
-      }
-    }
-    return false;
+    List<Record> records = ListUtils.emptyIfNull(MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3));
+    return records.stream().anyMatch(record -> isMulticastDomain(record.getName()));
   }
 
 
   public static boolean hasUnicastDomains(final Message query) {
-    List<Record> records = MulticastDNSUtils.extractRecords(query, 0, 1, 2, 3);
-    if (records != null) {
-      for (Record record : records) {
-        if (!isMulticastDomain(record.getName())) {
-          return true;
-        }
-      }
-    }
-    return false;
+    return !hasMulticastDomains(query);
   }
 
 
   public static boolean isMulticastDomain(final Name name) {
-    for (Name multicastDomain : Constants.IPv4_MULTICAST_DOMAINS) {
-      if (name.equals(multicastDomain) || name.subdomain(multicastDomain)) {
-        return true;
-      }
-    }
+    boolean ipv4Multicast = Constants.IPv4_MULTICAST_DOMAINS.stream()
+        .anyMatch(multicastDomain -> name.equals(multicastDomain) || name.subdomain(multicastDomain));
 
-    for (Name multicastDomain : Constants.IPv6_MULTICAST_DOMAINS) {
-      if (name.equals(multicastDomain) || name.subdomain(multicastDomain)) {
-        return true;
-      }
-    }
+    boolean ipv6Multicast = Constants.IPv6_MULTICAST_DOMAINS.stream()
+        .anyMatch(multicastDomain -> name.equals(multicastDomain) || name.subdomain(multicastDomain));
 
-    return false;
+    return ipv4Multicast || ipv6Multicast;
   }
 }

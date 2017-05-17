@@ -1041,9 +1041,9 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         if (header.getFlag(Flags.QR)) {
           throw new IOException("DNS Message too large! - " + out.length + " bytes in size.");
         } else {
-          Message[] messages = MulticastDNSUtils.splitMessage(message);
-          for (int index = 0; index < messages.length; index++) {
-            writeMessageToWire(messages[index]);
+          List<Message> messages = MulticastDNSUtils.splitMessage(message);
+          for (Message message1 : messages) {
+            writeMessageToWire(message1);
           }
           return;
         }

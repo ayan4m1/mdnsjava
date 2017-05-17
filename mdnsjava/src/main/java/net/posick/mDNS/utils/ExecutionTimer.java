@@ -17,36 +17,30 @@ public class ExecutionTimer {
 
 
   public long start() {
-    return ((Long) stack.push(new Long(System.nanoTime()))).longValue();
+    return (Long) stack.push(System.nanoTime());
   }
 
 
   public double took(final TimeUnit unit) {
     try {
-      long start = ((Long) stack.pop()).longValue();
+      long start = (Long) stack.pop();
       long took = System.nanoTime() - start;
 
       switch (unit) {
         case DAYS:
-          return (double) took / (double) 86400000000000l;
-        // return (double) took / 86400000000000f;
+          return (double) took / (double) 86400000000000L;
         case HOURS:
-          return (double) took / (double) 3600000000000l;
-        // return (double) took / 60000000000f;
+          return (double) took / (double) 3600000000000L;
         case MICROSECONDS:
           return (double) took / (double) 1000;
-        // return (double) took / 1000f;
         case MILLISECONDS:
           return (double) took / (double) 1000000;
-        // return (double) took / 1000000f;
         case MINUTES:
-          return (double) took / (double) 60000000000l;
-        // return (double) took / 60000000000f;
+          return (double) took / (double) 60000000000L;
         case NANOSECONDS:
           return took;
         case SECONDS:
           return (double) took / (double) 1000000000;
-        // return (double) took / 1000000000f;
       }
     } catch (EmptyStackException e) {
       // ignore

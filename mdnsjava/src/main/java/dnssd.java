@@ -285,19 +285,19 @@ public class dnssd {
               }
               Name hostname = new Name(host);
 
-              InetAddress[] addresses = null;
+              List<InetAddress> addresses = null;
               try {
-                addresses = InetAddress.getAllByName(hostname.toString());
+                addresses = Arrays.asList(InetAddress.getAllByName(hostname.toString()));
               } catch (UnknownHostException e) {
               }
 
-              if (addresses == null || addresses.length == 0) {
+              if (addresses == null || addresses.size() == 0) {
                 addresses = MulticastDNSUtils.getLocalAddresses();
               }
               ExecutionTimer._start();
               mDNSService = new MulticastDNSService();
-              ServiceInstance service = new ServiceInstance(serviceName, 0, 0, port, hostname/*, MulticastDNSService.DEFAULT_SRV_TTL*/,
-                  addresses, txtValues);
+              ServiceInstance service = new ServiceInstance(serviceName, 0, 0, port, hostname,
+                  addresses.toArray(new InetAddress[addresses.size()]), txtValues);
               ServiceInstance registeredService = mDNSService.register(service);
               if (registeredService != null) {
                 System.out.println("Services Successfully Registered: \n\t" + registeredService);

@@ -1,6 +1,5 @@
 package net.posick.mDNS.utils;
 
-import java.io.Closeable;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.logging.Level;
@@ -15,64 +14,17 @@ public class Misc {
 
   public static final Logger globalLogger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
-
-  public static final void close(Closeable closable) {
-    if (closable != null) {
-      try {
-        closable.close();
-      } catch (Exception e) {
-        // ignore
-      }
-    }
-  }
-
-
-  /**
-   * Trims trailing whitespace and dots ('.') from the input.
-   *
-   * @param builder The input
-   * @return The trimmed input
-   */
-  public static final StringBuilder trimTrailingDot(StringBuilder builder) {
-    for (int index = builder.length() - 1; index >= 0; index--) {
-      char ch = builder.charAt(index);
-      if (ch != '.' && !Character.isWhitespace(ch)) {
-        builder.setLength(index);
-        break;
-      }
-    }
-    return builder;
-  }
-
-
-  /**
-   * Trims trailing whitespace and dots ('.') from the input.
-   *
-   * @param builder The input
-   * @return The trimmed input
-   */
-  public static final String trimTrailingDot(String string) {
-    for (int index = string.length() - 1; index >= 0; index--) {
-      char ch = string.charAt(index);
-      if (ch != '.' && !Character.isWhitespace(ch)) {
-        return string.substring(0, index + 1);
-      }
-    }
-    return string;
-  }
-
-
   /**
    * Returns the message and stack trace from the provided Throwable
    *
    * @param t The Throwable
    * @return The message and stack trace from the provided Throwable
    */
-  public static final String throwableToString(Throwable e) {
+  public static final String throwableToString(Throwable t) {
     StringWriter sw = new StringWriter();
     PrintWriter pw = new PrintWriter(sw);
-    e.printStackTrace(pw);
-    return e.getMessage() + "\nStack Trace:\n" + sw.toString();
+    t.printStackTrace(pw);
+    return t.getMessage() + "\nStack Trace:\n" + sw.toString();
   }
 
 

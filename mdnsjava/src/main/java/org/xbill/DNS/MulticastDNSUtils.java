@@ -7,29 +7,23 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import net.posick.mDNS.Lookup.RecordListener;
 import net.posick.mDNS.utils.Misc;
-import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.StringUtils;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class MulticastDNSUtils {
 
   private static final Logger logger = Misc
       .getLogger(MulticastDNSUtils.class, Options.check("mdns_verbose"));
-
-
-  public static final Record[] EMPTY_RECORDS = new Record[0];
-
 
   /**
    * Tests if the response message answers all of the questions within the query message.
@@ -138,13 +132,11 @@ public class MulticastDNSUtils {
 
 
   public static final List<Record> extractRecords(final List<RRset> rrs) {
-    if ((rrs == null) || (rrs.size() == 0)) {
-      return new ArrayList<>();
-    }
-
     List<Record> results = new ArrayList<>();
-    rrs.forEach(rr -> results.addAll(extractRecords(rr)));
 
+    if (CollectionUtils.isNotEmpty(rrs)) {
+      rrs.forEach(rr -> results.addAll(extractRecords(rr)));
+    }
 
     return results;
   }
@@ -152,11 +144,11 @@ public class MulticastDNSUtils {
 
   public static String getHostName() {
     String hostname = System.getenv().get("HOSTNAME");
-    if ((hostname == null) || (hostname.trim().length() == 0)) {
+    if (StringUtils.isBlank(hostname)) {
       hostname = System.getenv().get("COMPUTERNAME");
     }
 
-    if ((hostname == null) || (hostname.trim().length() == 0)) {
+    if (StringUtils.isBlank(hostname)) {
       try {
         InetAddress localhost = InetAddress.getLocalHost();
         hostname = localhost.getHostName();
@@ -172,30 +164,21 @@ public class MulticastDNSUtils {
   }
 
 
-  public static InetAddress[] getLocalAddresses() {
-    ArrayList addresses = new ArrayList();
-
+  public static List<InetAddress> getLocalAddresses() {
+    List<InetAddress> addresses = new ArrayList<>();
     try {
       Enumeration<NetworkInterface> enet = NetworkInterface.getNetworkInterfaces();
-
       while (enet.hasMoreElements()) {
         NetworkInterface net = enet.nextElement();
-
-        if (net.isLoopback()) {
-          continue;
-        }
-
-        Enumeration<InetAddress> eaddr = net.getInetAddresses();
-
-        while (eaddr.hasMoreElements()) {
-          addresses.add(eaddr.nextElement());
+        if (!net.isLoopback()) {
+          addresses.addAll(Collections.list(net.getInetAddresses()));
         }
       }
     } catch (SocketException e) {
       // ignore
     }
 
-    return (InetAddress[]) addresses.toArray(new InetAddress[addresses.size()]);
+    return addresses;
   }
 
 
@@ -208,18 +191,16 @@ public class MulticastDNSUtils {
       while (enet.hasMoreElements() && (name == null)) {
         NetworkInterface net = enet.nextElement();
 
-        if (net.isLoopback()) {
-          continue;
-        }
+        if (!net.isLoopback()) {
+          Enumeration<InetAddress> eaddr = net.getInetAddresses();
 
-        Enumeration<InetAddress> eaddr = net.getInetAddresses();
+          while (eaddr.hasMoreElements()) {
+            InetAddress inet = eaddr.nextElement();
 
-        while (eaddr.hasMoreElements()) {
-          InetAddress inet = eaddr.nextElement();
-
-          if (inet.getCanonicalHostName().equalsIgnoreCase(inet.getHostAddress()) == false) {
-            name = inet.getCanonicalHostName();
-            break;
+            if (!inet.getCanonicalHostName().equalsIgnoreCase(inet.getHostAddress())) {
+              name = inet.getCanonicalHostName();
+              break;
+            }
           }
         }
       }
@@ -236,9 +217,9 @@ public class MulticastDNSUtils {
       return ((SingleNameBase) record).getSingleName();
     } else {
       try {
-        Method method = record.getClass().getMethod("getTarget", new Class[0]);
+        Method method = record.getClass().getMethod("getTarget");
         if (method != null) {
-          Object target = method.invoke(record, new Object[0]);
+          Object target = method.invoke(record);
           if (target instanceof Name) {
             return (Name) target;
           }
@@ -290,7 +271,7 @@ public class MulticastDNSUtils {
   }
 
 
-  public static Message newQueryResponse(final Record[] records, final int section) {
+  public static Message newQueryResponse(final List<Record> records, final int section) {
     Message message = new Message();
     Header header = message.getHeader();
 
@@ -298,9 +279,7 @@ public class MulticastDNSUtils {
     header.setOpcode(Opcode.QUERY);
     header.setFlag(Flags.QR);
 
-    for (int index = 0; index < records.length; index++) {
-      message.addRecord(records[index], section);
-    }
+    records.forEach(record -> message.addRecord(record, section));
 
     return message;
   }
@@ -310,14 +289,13 @@ public class MulticastDNSUtils {
     record.dclass = dclass;
   }
 
-
   public static void setTLLForRecord(final Record record, final long ttl) {
     record.setTTL(ttl);
   }
 
 
-  public static Message[] splitMessage(final Message message) {
-    List messages = new ArrayList();
+  public static List<Message> splitMessage(final Message message) {
+    List<Message> messages = new ArrayList<>();
 
     int maxRecords = Options.intValue("mdns_max_records_per_message");
     if (maxRecords > 1) {
@@ -331,7 +309,6 @@ public class MulticastDNSUtils {
         if (m == null) {
           m = new Message();
           Header header = (Header) message.getHeader().clone();
-          //                    header.setFlag(Flags.TC);
           header.setCount(0, 0);
           header.setCount(1, 0);
           header.setCount(2, 0);
@@ -350,6 +327,6 @@ public class MulticastDNSUtils {
       }
     }
 
-    return (Message[]) messages.toArray(new Message[messages.size()]);
+    return messages;
   }
 }

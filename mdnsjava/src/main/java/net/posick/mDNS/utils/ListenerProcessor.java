@@ -7,8 +7,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,25 +25,19 @@ public class ListenerProcessor<T> implements Closeable {
   private static final Logger logger = Logger.getLogger(ListenerProcessor.class.getName());
 
   public static class StopDispatchException extends Exception {
-
     private static final long serialVersionUID = 201401211841L;
-
 
     public StopDispatchException() {
       super();
     }
   }
 
-
   protected static class Dispatcher implements InvocationHandler {
-
     ListenerProcessor<?> processor;
-
 
     protected Dispatcher(final ListenerProcessor<?> processor) {
       this.processor = processor;
     }
-
 
     public Object invoke(final Object proxy, final Method method, final Object[] args)
         throws Throwable {
@@ -53,10 +45,7 @@ public class ListenerProcessor<T> implements Closeable {
       for (Object listener : tempListeners) {
         try {
           method.invoke(listener, args);
-        } catch (IllegalArgumentException e) {
-          logger.log(Level.WARNING, e.getMessage(), e);
-          throw e;
-        } catch (IllegalAccessException e) {
+        } catch (IllegalArgumentException | IllegalAccessException e) {
           logger.log(Level.WARNING, e.getMessage(), e);
           throw e;
         } catch (InvocationTargetException e) {
@@ -82,7 +71,6 @@ public class ListenerProcessor<T> implements Closeable {
 
   private T dispatcher;
 
-
   public ListenerProcessor(final Class<T> iface) {
     this.iface = iface;
     if (!iface.isInterface()) {
@@ -90,15 +78,12 @@ public class ListenerProcessor<T> implements Closeable {
     }
   }
 
-
-  public void close()
-      throws IOException {
+  public void close() throws IOException {
     for (int i = 0; i < this.listeners.length; i++) {
       this.listeners[i] = null;
     }
     this.listeners = new Object[0];
   }
-
 
   public T getDispatcher() {
     if (dispatcher == null) {
@@ -108,15 +93,14 @@ public class ListenerProcessor<T> implements Closeable {
     return dispatcher;
   }
 
-
   public synchronized T registerListener(final T listener) {
     // Make sure the listener is not null and that it implements the Interface
     if ((listener != null) && iface.isAssignableFrom(listener.getClass())) {
       // Check to ensure the listener does not exist
-      for (int index = 0; index < listeners.length; index++) {
-        if ((listeners[index] == listener) || listeners[index].equals(listener)) {
+      for (Object listener1 : listeners) {
+        if (listener1.equals(listener)) {
           // already registered
-          return (T) listeners[index];
+          return (T) listener1;
         }
       }
 
@@ -129,7 +113,6 @@ public class ListenerProcessor<T> implements Closeable {
       return null;
     }
   }
-
 
   public synchronized T unregisterListener(final T listener) {
     if (listener != null) {
@@ -150,39 +133,5 @@ public class ListenerProcessor<T> implements Closeable {
     }
 
     return null;
-  }
-
-
-  protected static final Class<?>[] getAllInterfaces(final Class<?> clazz) {
-    LinkedHashSet<Class<?>> set = new LinkedHashSet<Class<?>>();
-    Stack<Class<?>> stack = new Stack<Class<?>>();
-
-    stack.push(clazz);
-
-    if (clazz.isInterface()) {
-      set.add(clazz);
-    }
-
-    while (!stack.isEmpty()) {
-      Class<?> cls = stack.pop();
-      Class<?>[] interfaces = cls.getInterfaces();
-      if ((interfaces != null) && (interfaces.length > 0)) {
-        for (Class<?> iface : interfaces) {
-          if (set.add(iface)) {
-            stack.push(iface);
-          }
-        }
-      }
-
-      Class<?> superClass = cls.getSuperclass();
-      if (superClass != null) {
-        if (superClass.isInterface()) {
-          set.add(superClass);
-        }
-        stack.push(superClass);
-      }
-    }
-
-    return set.toArray(new Class[set.size()]);
   }
 }
