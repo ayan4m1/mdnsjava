@@ -15,10 +15,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.utils.Executors;
-import net.posick.mDNS.utils.Misc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Cache;
 import org.xbill.DNS.Credibility;
 import org.xbill.DNS.DClass;
@@ -28,7 +27,6 @@ import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.Opcode;
-import org.xbill.DNS.Options;
 import org.xbill.DNS.RRset;
 import org.xbill.DNS.Rcode;
 import org.xbill.DNS.Record;
@@ -52,9 +50,7 @@ import org.xbill.DNS.Type;
 @SuppressWarnings({"unchecked",
     "rawtypes"})
 public class MulticastDNSCache extends Cache implements Closeable {
-
-  protected static final Logger logger = Misc.getLogger(MulticastDNSCache.class.getName(),
-      Options.check("mdns_verbose") || Options.check("dns_verbose") || Options.check("verbose"));
+  private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSCache.class);
 
   /**
    * The CacheCheck interface allows a client to monitor the Cache data
@@ -102,7 +98,6 @@ public class MulticastDNSCache extends Cache implements Closeable {
      */
     boolean isOperational();
   }
-
 
   protected static class ElementHelper {
     private Cache cache = null;
@@ -209,7 +204,7 @@ public class MulticastDNSCache extends Cache implements Closeable {
         try {
           cacheMonitor.begin();
         } catch (Exception e) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.warn("Cache Monitor could not begin.", e);
         }
 
         Object[] sets;
@@ -234,17 +229,17 @@ public class MulticastDNSCache extends Cache implements Closeable {
               processElement(new ElementHelper(MulticastDNSCache.this, types));
             }
           } catch (Exception e) {
-            logger.log(Level.WARNING, e.getMessage(), e);
+            LOG.warn(e.getMessage(), e);
           }
         }
 
         try {
           cacheMonitor.end();
         } catch (Exception e) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.warn(e.getMessage(), e);
         }
       } catch (Throwable e) {
-        logger.log(Level.WARNING, e.getMessage(), e);
+        LOG.warn(e.getMessage(), e);
       }
     }
 
@@ -271,12 +266,12 @@ public class MulticastDNSCache extends Cache implements Closeable {
             cacheMonitor.check(rrs, element.getCredibility(), expiresIn);
           }
         } else {
-          logger.logp(Level.INFO, getClass().getName(), "processElement",
-              "Element is an unexpected type \"" + (element.getElement() != null ? element
-                  .getElement().getClass().getName() : "null") + "\"");
+          LOG.error("Element is an unexpected type \"" + (element.getElement() != null ? element
+              .getElement().getClass().getName() : "null") + "\"");
+
         }
       } catch (Exception e) {
-        logger.log(Level.WARNING, e.getMessage(), e);
+        LOG.warn(e.getMessage(), e);
       }
     }
   }
@@ -300,14 +295,14 @@ public class MulticastDNSCache extends Cache implements Closeable {
       } catch (IOException e) {
         temp = new MulticastDNSCache();
 
-        logger.log(Level.WARNING, "Error loading default cache values - " + e.getMessage(), e);
+        LOG.warn("Error loading default cache values", e);
       }
     } catch (NoSuchFieldException e) {
-      logger.log(Level.WARNING, "Unrecoverable Error: The base " + Cache.class
-          + " class does not implement required fields - " + e.getMessage(), e);
+      LOG.warn("Unrecoverable Error: The base {} class does not implement required fields",
+          Cache.class, e);
     } catch (NoSuchMethodException e) {
-      logger.log(Level.WARNING, "Unrecoverable Error: The base " + Cache.class
-          + " class does not implement required methods - " + e.getMessage(), e);
+      LOG.warn("Unrecoverable Error: The base {} class does not implement required methods",
+          Cache.class, e);
     }
 
     DEFAULT_MDNS_CACHE = temp;
@@ -521,7 +516,7 @@ public class MulticastDNSCache extends Cache implements Closeable {
     try {
       removeElement.invoke(this, name, type);
     } catch (Exception e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.error("Error invoking removeElement for name {} and type {}", name, type, e);
     }
   }
 
@@ -577,13 +572,12 @@ public class MulticastDNSCache extends Cache implements Closeable {
   }
 
   @Override
-  protected void finalize()
-      throws Throwable {
+  protected void finalize() throws Throwable {
     try {
       close();
       super.finalize();
     } catch (Throwable t) {
-      logger.log(Level.WARNING, t.getMessage(), t);
+      LOG.error("Error closing and finalizing.", t);
     }
   }
 
@@ -604,10 +598,10 @@ public class MulticastDNSCache extends Cache implements Closeable {
 
       dataCopy = (LinkedHashMap) dataField.get(this);
     } catch (NoSuchFieldException e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.warn("No such field.", e);
       throw e;
     } catch (Exception e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.error("Unknown error.", e);
     }
 
     try {
@@ -620,10 +614,10 @@ public class MulticastDNSCache extends Cache implements Closeable {
       AccessibleObject.setAccessible(new AccessibleObject[]{findElement,
           removeElement}, true);
     } catch (NoSuchMethodException e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.warn("No such method.", e);
       throw e;
     } catch (Exception e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.error("Unknown error.", e);
     }
   }
 
@@ -632,9 +626,9 @@ public class MulticastDNSCache extends Cache implements Closeable {
     Object o = findElement.invoke(this, name, type, minCred);
 
     try {
-      return o == null ? (ElementHelper) null : new ElementHelper(this, o);
+      return o == null ? null : new ElementHelper(this, o);
     } catch (Exception e) {
-      logger.log(Level.WARNING, e.getMessage(), e);
+      LOG.error("Unknown error.", e);
       return null;
     }
   }

@@ -10,19 +10,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.MulticastDNSCache.CacheMonitor;
 import net.posick.mDNS.net.DatagramProcessor;
 import net.posick.mDNS.net.Packet;
 import net.posick.mDNS.net.PacketListener;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
-import net.posick.mDNS.utils.Misc;
 import net.posick.mDNS.utils.Wait;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Cache;
 import org.xbill.DNS.Credibility;
 import org.xbill.DNS.Flags;
@@ -57,7 +55,7 @@ import org.xbill.DNS.WireParseException;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener {
 
-  private static final Logger logger = Misc.getLogger(MulticastDNSMulticastOnlyQuerier.class, true);
+  private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSMulticastOnlyQuerier.class);
 
   public class ListenerWrapper implements ResolverListener {
     private final Object id;
@@ -100,8 +98,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           listener.receiveMessage(this.id, m);
           unregisterListener(this);
         }
-      } else {
-        return;
       }
     }
   }
@@ -130,8 +126,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
       if (header.getFlag(Flags.TC)) {
         if (ignoreTruncation) {
-          logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-              "Truncated Message : " + "RCode: " + Rcode.string(rcode) + "; Opcode: " + Opcode
+          LOG.warn("Truncated Message : " + "RCode: " + Rcode.string(rcode) + "; Opcode: " + Opcode
                   .string(opcode) + " - Ignoring subsequent known answer records.");
           return;
         } else {
@@ -140,10 +135,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       }
 
       if (mdnsVerbose) {
-        logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-            "RCode: " + Rcode.string(rcode));
-        logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-            "Opcode: " + Opcode.string(opcode));
+        LOG.info("Receive - RCode: " + Rcode.string(rcode));
+        LOG.info("Receive - Opcode: " + Opcode.string(opcode));
       }
 
       try {
@@ -158,16 +151,14 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
                   responseHeader.getCount(Section.AUTHORITY) > 0) || (
                   responseHeader.getCount(Section.ADDITIONAL) > 0)) {
                 if (mdnsVerbose) {
-                  logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-                      "Query Reply ID: " + id + "\n" + response);
+                  LOG.info("Receive - Query Reply ID: " + id + "\n" + response);
                 }
                 responseHeader.setFlag(Flags.AA);
                 responseHeader.setFlag(Flags.QR);
                 writeResponse(response);
               } else {
                 if (mdnsVerbose) {
-                  logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-                      "No response, client knows answer.");
+                  LOG.info("Receive - No response, client knows answer.");
                 }
               }
             }
@@ -175,12 +166,11 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           case Opcode.NOTIFY:
           case Opcode.STATUS:
           case Opcode.UPDATE:
-            logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-                "Received Invalid Request - Opcode: " + Opcode.string(opcode));
+            LOG.warn("Receive - Received Invalid Request - Opcode: " + Opcode.string(opcode));
             break;
         }
       } catch (Exception e) {
-        logger.log(Level.WARNING, "Error replying to query - " + e.getMessage(), e);
+        LOG.error("Error replying to query", e);
       }
     }
   }
@@ -202,8 +192,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       int opcode = header.getOpcode();
 
       if (ignoreTruncation && header.getFlag(Flags.TC)) {
-        logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-            "Truncated Message Ignored : " + "RCode: " + Rcode.string(rcode) + "; Opcode: " + Opcode
+        LOG.warn("Receive - Truncated Message Ignored : " + "RCode: " + Rcode.string(rcode) + "; Opcode: " + Opcode
                 .string(opcode));
         return;
       }
@@ -223,16 +212,13 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           break;
         case Opcode.UPDATE:
           // We do not allow updates from the network!
-          logger.logp(Level.SEVERE, getClass().getName(), "receiveMessage",
-              "Updates from the network are not allowed!");
+          LOG.error("Updates from the network are not allowed!");
           return;
       }
 
       if (mdnsVerbose) {
-        logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-            "RCode: " + Rcode.string(rcode));
-        logger.logp(Level.INFO, getClass().getName(), "receiveMessage",
-            "Opcode: " + Opcode.string(opcode));
+        LOG.info("Receive - RCode: " + Rcode.string(rcode));
+        LOG.info("Receive - Opcode: " + Opcode.string(opcode));
       }
     }
   }
@@ -296,7 +282,6 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
                   + " seconds ago. ");
         }
         builder.append(" Cache Monitor Check ");
-        logger.logp(Level.INFO, getClass().getName(), "begin", builder.toString());
       }
       lastPoll = System.currentTimeMillis();
 
@@ -307,8 +292,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
     public void check(final RRset rrs, final int credibility, final int expiresIn) {
       if (mdnsVerbose || cacheVerbose) {
-        logger.logp(Level.INFO, getClass().getName(), "check",
-            "CacheMonitor check RRset: expires in: " + expiresIn + " seconds : " + rrs);
+        LOG.info("CacheMonitor check RRset: expires in: " + expiresIn + " seconds : " + rrs);
       }
       long ttl = rrs.getTTL();
 
@@ -321,7 +305,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
               MulticastDNSUtils.setTLLForRecord(record, ttl);
               authRecords.add(record);
             } catch (Exception e) {
-              logger.log(Level.WARNING, e.getMessage(), e);
+              LOG.error("Error adding record", e);
             }
           }
         }
@@ -340,8 +324,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           }
 
           if (mdnsVerbose || cacheVerbose) {
-            logger.logp(Level.INFO, getClass().getName(), "end",
-                "CacheMonitor Broadcasting update for Authoritative Records:\n" + m);
+            LOG.info("CacheMonitor Broadcasting update for Authoritative Records: " + m);
           }
           broadcast(m, false);
         }
@@ -357,8 +340,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           }
 
           if (mdnsVerbose || cacheVerbose) {
-            logger.logp(Level.INFO, getClass().getName(), "end",
-                "CacheMonitor Locally Broadcasting Non-Authoritative Records:\n" + m);
+            LOG.info("CacheMonitor Locally Broadcasting Non-Authoritative Records:" + m);
           }
           resolverListenerProcessor.getDispatcher().receiveMessage(h.getID(), m);
         }
@@ -369,10 +351,10 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         resolverListenerDispatcher.handleException("", ioe);
 
         if (mdnsVerbose) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.error("Error occurred while refreshing cached entries.", e);
         }
       } catch (Exception e) {
-        logger.log(Level.WARNING, e.getMessage(), e);
+        LOG.error("Unknown error", e);
       }
 
       authRecords.clear();
@@ -382,8 +364,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
     public void expired(final RRset rrs, final int credibility) {
       if (mdnsVerbose || cacheVerbose) {
-        logger.logp(Level.INFO, getClass().getName(), "expired",
-            "CacheMonitor RRset expired : " + rrs);
+        LOG.info("CacheMonitor RRset expired : " + rrs);
       }
 
       List<Record> list = credibility >= Credibility.AUTH_AUTHORITY ? authRecords : nonauthRecords;
@@ -391,12 +372,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       List<Record> records = MulticastDNSUtils.extractRecords(rrs);
       if (CollectionUtils.isNotEmpty(records)) {
         for (Record record : records) {
-          try {
-            MulticastDNSUtils.setTLLForRecord(record, 0);
-            list.add(record);
-          } catch (Exception e) {
-            logger.log(Level.WARNING, e.getMessage(), e);
-          }
+          MulticastDNSUtils.setTLLForRecord(record, 0);
+          list.add(record);
         }
       }
     }
@@ -488,8 +465,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
                 this);
             multicastProcessors.add(multicastProcessor);
           } catch (Exception e) {
-            logger.log(Level.WARNING,
-                "Could not bind to address \"" + ifaceAddr + "\" - " + e.getMessage(), e);
+            LOG.error("Could not bind to address {}", ifaceAddr, e);
           }
         }
       }
@@ -513,8 +489,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
    */
   public void broadcast(final Message message, final boolean addKnownAnswers) throws IOException {
     if (mdnsVerbose) {
-      logger.logp(Level.INFO, getClass().getName(), "broadcast",
-          "Broadcasting Query to " + multicastAddress.getHostAddress() + ":" + port);
+      LOG.info("Broadcasting Query to " + multicastAddress.getHostAddress() + ":" + port);
     }
 
     Header header = message.getHeader();
@@ -610,7 +585,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
   public void packetReceived(final Packet packet) {
     if (mdnsVerbose) {
-      logger.logp(Level.INFO, getClass().getName(), "packetReceived", "mDNS Datagram Received!");
+      LOG.info("mDNS Datagram Received!");
     }
 
     byte[] data = packet.getData();
@@ -620,8 +595,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       // Check that the response is long enough.
       if (data.length < Header.LENGTH) {
         if (mdnsVerbose) {
-          logger.logp(Level.INFO, getClass().getName(), "packetReceived",
-              "Error parsing mDNS Response - Invalid DNS header - too short");
+          LOG.info("Error parsing mDNS Response - Invalid DNS header - too short");
         }
         return;
       }
@@ -630,9 +604,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         Message message = parseMessage(data);
         resolverListenerDispatcher.receiveMessage(message.getHeader().getID(), message);
       } catch (IOException e) {
-        logger.log(Level.WARNING,
-            "Error parsing mDNS Packet - " + e.getMessage() + "\nPacket Data [" + Arrays
-                .toString(data) + "]", e);
+        LOG.error("Error parsing mDNS Packet: Packet Data [{}]", Arrays.toString(data), e);
       }
     }
   }
@@ -778,7 +750,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
         }
       } catch (Exception e) {
         if (mdnsVerbose) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.error("Error creating multicast dns cache", e);
         }
 
         throw new IllegalArgumentException("Could not set Cache - " + e.getMessage());
@@ -912,7 +884,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       return new Message(b);
     } catch (IOException e) {
       if (mdnsVerbose) {
-        e.printStackTrace(System.err);
+        LOG.error("Error creating message.", e);
       }
 
       WireParseException we;
@@ -936,8 +908,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     int error = tsig.verify(response, b, query.getTSIG());
 
     if (mdnsVerbose) {
-      logger.logp(Level.INFO, getClass().getName(), "verifyTSIG",
-          "TSIG verify: " + Rcode.TSIGstring(error));
+      LOG.info("TSIG verify: " + Rcode.TSIGstring(error));
     }
 
     return error;
@@ -981,8 +952,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
    */
   protected void writeResponse(final Message message) throws IOException {
     if (mdnsVerbose) {
-      logger.logp(Level.INFO, getClass().getName(), "writeResponse",
-          "Writing Response to " + multicastAddress.getHostAddress() + ":" + port);
+      LOG.info("Writing Response to " + multicastAddress.getHostAddress() + ":" + port);
     }
     Header header = message.getHeader();
 
@@ -1009,15 +979,13 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
               List<Record> cachedRecords = MulticastDNSUtils.extractRecords(rrs);
               if (CollectionUtils.isNotEmpty(cachedRecords)) {
                 if (mdnsVerbose) {
-                  logger.logp(Level.INFO, getClass().getName(), "updateCache",
-                      "Updating Cached Record: " + cacheRecord);
+                  LOG.info("Updating Cached Record: " + cacheRecord);
                 }
                 cache.updateRRset(cacheRecord, credibility);
               }
             } else {
               if (mdnsVerbose) {
-                logger.logp(Level.INFO, getClass().getName(), "updateCache",
-                    "Caching Record: " + cacheRecord);
+                LOG.info("Caching Record: " + cacheRecord);
               }
               cache.addRecord(cacheRecord, credibility, null);
             }
@@ -1027,7 +995,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           }
         } catch (Exception e) {
           if (mdnsVerbose) {
-            logger.log(Level.INFO, "Error caching record - " + e.getMessage() + ": " + record, e);
+            LOG.error("Error caching record - " + e.getMessage() + ": " + record, e);
           }
         }
       }

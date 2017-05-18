@@ -1,6 +1,5 @@
 package net.posick.mDNS;
 
-import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -9,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -17,16 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.Lookup.Domain;
 import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
-import net.posick.mDNS.utils.Misc;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
 import org.xbill.DNS.DClass;
@@ -34,7 +31,6 @@ import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
 import org.xbill.DNS.NSECRecord;
 import org.xbill.DNS.Name;
-import org.xbill.DNS.Options;
 import org.xbill.DNS.PTRRecord;
 import org.xbill.DNS.Rcode;
 import org.xbill.DNS.Record;
@@ -47,9 +43,7 @@ import org.xbill.DNS.Update;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class MulticastDNSService extends MulticastDNSLookupBase {
-
-  private static final Logger logger = Misc.getLogger(MulticastDNSService.class,
-      Options.check("mdns_verbose") || Options.check("verbose"));
+  private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSService.class);
 
   protected class Register {
     private final ServiceInstance service;
@@ -286,14 +280,10 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           instances = lookup.lookupServices();
 
           if (CollectionUtils.isNotEmpty(instances)) {
-            if (logger.isLoggable(Level.FINE)) {
-              logger.logp(Level.FINE, getClass().getName(), "register", "Response received.");
-            }
+            LOG.trace("Register - Response received.");
 
             if (instances.size() > 1) {
-              logger.logp(Level.WARNING, getClass().getName(), "register",
-                  "Warning: More than one service with the name \"" + shortSRVName
-                      + "\" was registered.");
+              LOG.warn("Register - Warning: More than one service with the name {} was registered.", shortSRVName);
               throw new IOException("Too many services returned! + Instances: " + instances);
             }
 
@@ -304,8 +294,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         }
       }
 
-      logger.logp(Level.WARNING, getClass().getName(), "register",
-          "How did the execution path getting here!?");
+      LOG.error("Register - How did the execution path getting here!?");
       throw new ServiceRegistrationException(ServiceRegistrationException.REASON.UNKNOWN);
     }
   }
@@ -348,9 +337,9 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       }
 
       // Strip the records that are not related to the query.
-      Set<Name> additionalNames = new LinkedHashSet<Name>();
-      List<Record> ignoredRecords = new LinkedList<Record>();
-      List<Record> filteredRecords = new LinkedList<Record>();
+      Set<Name> additionalNames = new LinkedHashSet<>();
+      List<Record> ignoredRecords = new LinkedList<>();
+      List<Record> filteredRecords = new LinkedList<>();
       List<Record> thatAnswers = MulticastDNSUtils
           .extractRecords(message, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL);
       for (Record record : thatAnswers) {
@@ -414,7 +403,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
                   }
                 } else {
                   synchronized (services) {
-                    service = (ServiceInstance) services.get(ptr.getTarget());
+                    service = services.get(ptr.getTarget());
                     if (service != null) {
                       services.remove(service.getName());
                       removedServices.put(service.getName(), service);
@@ -424,12 +413,8 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
                 break;
             }
           } catch (IOException e) {
-            if (logger.isLoggable(Level.FINE)) {
-              logger.log(Level.WARNING, "Error parsing SRV record - " + e.getMessage(), e);
-            } else {
-              logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-                  "Error parsing SRV record - " + e.getMessage());
-            }
+            LOG.error("Error parsing SRV record", e);
+
           }
         }
         // TODO: Check found services against already found services!
@@ -437,13 +422,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           try {
             listenerProcessor.getDispatcher().serviceDiscovered(id, service);
           } catch (Exception e) {
-            if (logger.isLoggable(Level.FINE)) {
-              logger.log(Level.WARNING, "Error sending serviceDiscovered event - " + e.getMessage(),
-                  e);
-            } else {
-              logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-                  "Error sending serviceDiscovered event - " + e.getMessage());
-            }
+            LOG.error("Error sending serviceDiscovered event", e);
           }
         }
 
@@ -451,23 +430,15 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           try {
             listenerProcessor.getDispatcher().serviceRemoved(id, service);
           } catch (Exception e) {
-            if (logger.isLoggable(Level.FINE)) {
-              logger
-                  .log(Level.WARNING, "Error sending serviceRemoved event - " + e.getMessage(), e);
-            } else {
-              logger.logp(Level.WARNING, getClass().getName(), "receiveMessage",
-                  "Error sending serviceRemoved event - " + e.getMessage());
-            }
+            LOG.error("Error sending serviceRemoved event", e);
           }
         }
       }
     }
 
-
     public void start() {
       browser.start(this);
     }
-
 
     boolean answersQuery(final Record record) {
       if (record != null) {
@@ -732,7 +703,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
   }
 
   protected Set<Domain> getDomains(final List<String> names, final List<Name> path) {
-    Set<Domain> results = new LinkedHashSet<Domain>();
+    Set<Domain> results = new LinkedHashSet<>();
     Stack<List<Name>> stack = new Stack<>();
     stack.push(path);
 
@@ -758,7 +729,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           }
         }
       } catch (IOException e) {
-        logger.log(Level.SEVERE, "Error getting domains - " + e.getMessage(), e);
+        LOG.error("Error getting domains", e);
       } finally {
         IOUtils.closeQuietly(lookup);
       }

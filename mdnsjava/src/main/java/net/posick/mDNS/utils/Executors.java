@@ -10,17 +10,15 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.net.NetworkProcessor;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Options;
 
 public class Executors {
 
-  public static final Logger logger = Misc
-      .getLogger(Executors.class.getName(), Options.check("executors"));
-
+  private static final Logger LOG = LoggerFactory.getLogger(Executors.class);
 
   public static final int DEFAULT_NETWORK_THREAD_PRIORITY = Thread.NORM_PRIORITY + 2;
 
@@ -96,9 +94,7 @@ public class Executors {
           return t;
         }, new RejectedExecutionHandler() {
       public void rejectedExecution(final Runnable r, final ThreadPoolExecutor executor) {
-        logger.logp(Level.WARNING, getClass().getName(),
-            "net.posick.mDNS.utils.RejectedExecutionHandler", "rejectedExecution",
-            "Network Processing Queue Rejected Packet it is FULL. [size: " + executor.getQueue()
+        LOG.warn("Network Processing Queue Rejected Packet it is FULL. [size: " + executor.getQueue()
                 .size() + "]");
       }
     });

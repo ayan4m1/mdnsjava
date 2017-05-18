@@ -2,8 +2,6 @@ package net.posick.mDNS.utils;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * This class contains miscellaneous utility methods
@@ -11,8 +9,6 @@ import java.util.logging.Logger;
  * @author Steve Posick
  */
 public class Misc {
-
-  public static final Logger globalLogger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
   /**
    * Returns the message and stack trace from the provided Throwable
@@ -62,20 +58,5 @@ public class Misc {
     }
 
     return output.toString();
-  }
-
-
-  public static final Logger getLogger(Class<?> cls, boolean verbose) {
-    return getLogger(cls.getName(), verbose);
-  }
-
-
-  public static final Logger getLogger(String name, boolean verbose) {
-    Logger logger = Logger.getLogger(name);
-    logger.setParent(globalLogger);
-    if (verbose) {
-      logger.setLevel(Level.FINEST);
-    }
-    return logger;
   }
 }

@@ -19,10 +19,10 @@ public class ServiceInstance implements Serializable {
 
   private static final long serialVersionUID = 201210181454L;
 
-  private final List pointers = new ArrayList();
+  private final List<Name> pointers = new ArrayList<>();
   private final ServiceName name;
   private Name host;
-  private List addresses = new ArrayList();
+  private List<InetAddress> addresses = new ArrayList<>();
   private int priority;
   private int weight;
   private int port;
@@ -117,7 +117,7 @@ public class ServiceInstance implements Serializable {
 
   public InetAddress[] getAddresses() {
     return (addresses == null) || (addresses.size() == 0) ? null
-        : (InetAddress[]) addresses.toArray(new InetAddress[addresses.size()]);
+        : addresses.toArray(new InetAddress[addresses.size()]);
   }
 
   public Name getHost() {
@@ -135,7 +135,7 @@ public class ServiceInstance implements Serializable {
 
   public Name[] getPointers() {
     return (pointers == null) || (pointers.size() == 0) ? null
-        : (Name[]) pointers.toArray(new Name[pointers.size()]);
+        : pointers.toArray(new Name[pointers.size()]);
   }
 
   public int getPort() {
@@ -175,47 +175,39 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-
-  public void setAddresses(final List addresses) {
+  public void setAddresses(final List<InetAddress> addresses) {
     if (addresses != null) {
       this.addresses.clear();
       this.addresses.addAll(addresses);
     }
   }
 
-
   public void setHost(final Name host) {
     this.host = host;
   }
-
 
   public void setNiceText(final String niceText) {
     this.niceText = niceText;
   }
 
-
-  public void setPointers(final List pointers) {
+  public void setPointers(final List<Name> pointers) {
     if (pointers != null) {
       this.pointers.clear();
       this.pointers.addAll(pointers);
     }
   }
 
-
   public void setPort(final int port) {
     this.port = port;
   }
-
 
   public void setPriority(final int priority) {
     this.priority = priority;
   }
 
-
   public void setWeight(final int weight) {
     this.weight = weight;
   }
-
 
   @Override
   public String toString() {
@@ -263,7 +255,6 @@ public class ServiceInstance implements Serializable {
     builder.append(")");
     return builder.toString();
   }
-
 
   /**
    * Adds the specified text to the service.
@@ -322,7 +313,6 @@ public class ServiceInstance implements Serializable {
       return textAttributes;
     }
   }
-
 
   private static String[] split(final String text) {
     ArrayList list = new ArrayList();

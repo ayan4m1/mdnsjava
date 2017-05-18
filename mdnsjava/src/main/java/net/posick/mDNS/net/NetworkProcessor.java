@@ -5,18 +5,14 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.utils.ExecutionTimer;
 import net.posick.mDNS.utils.Executors;
-import net.posick.mDNS.utils.Misc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Options;
 
 public abstract class NetworkProcessor implements Runnable, Closeable {
-
-  protected static final Logger logger = Misc.getLogger(NetworkProcessor.class.getName(),
-      Options.check("mdns_network_verbose") || Options.check("network_verbose") || Options
-          .check("mdns_verbose") || Options.check("dns_verbose") || Options.check("verbose"));
+  private static final Logger LOG = LoggerFactory.getLogger(NetworkProcessor.class);
 
   protected static class PacketRunner implements Runnable {
 
@@ -35,30 +31,22 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
     }
 
     public void run() {
-      logger.logp(Level.FINE, getClass().getName(), "run",
-          "Running " + packets.length + " on a single thread");
+      LOG.trace("Running {} on a single thread", packets.length);
+
       lastPacket = System.currentTimeMillis();
 
       PacketListener dispatcher = this.dispatcher;
       for (Packet packet : packets) {
         try {
-          if (logger.isLoggable(Level.FINE)) {
-            double took = packet.timer.took(TimeUnit.MILLISECONDS);
-            logger.logp(Level.FINE, getClass().getName(), "run",
-                "NetworkProcessor took " + took + " milliseconds to start packet " + packet.id
-                    + ".");
-            ExecutionTimer._start();
-            logger.logp(Level.FINE, getClass().getName(), "run",
-                "-----> Dispatching Packet " + packet.id + " <-----");
-          }
+          double took = packet.timer.took(TimeUnit.MILLISECONDS);
+          LOG.trace("NetworkProcessor took {} ms to start packet {}.", took, packet.id);
+          ExecutionTimer._start();
+          LOG.trace("-----> Dispatching packet {} <-----", packet.id);
           dispatcher.packetReceived(packet);
-          if (logger.isLoggable(Level.FINE)) {
-            logger.logp(Level.FINE, getClass().getName(), "run",
-                "Packet " + packet.id + " took " + ExecutionTimer._took(TimeUnit.MILLISECONDS)
-                    + " milliseconds to be dispatched to Listeners.");
-          }
+          LOG.trace("Packet {} took {} ms to be dispatched to Listeners.", packet.id, ExecutionTimer._took(TimeUnit.MILLISECONDS));
+
         } catch (Throwable e) {
-          logger.log(Level.WARNING, "Error dispatching data packet - " + e.getMessage(), e);
+          LOG.warn("Error dispatching data packet", e);
         }
       }
     }
@@ -180,15 +168,11 @@ public abstract class NetworkProcessor implements Runnable, Closeable {
               if (!executors.isNetworkExecutorOperational()) {
                 msg += " - NetworkProcessorExecutor has shutdown!";
               }
-              logger
-                  .logp(Level.WARNING, getClass().getPackage().getName() + ".ThreadMonitor", "run",
-                      msg);
+              LOG.warn(msg);
             }
 
             if (!operational) {
-              logger
-                  .logp(Level.WARNING, getClass().getPackage().getName() + ".ThreadMonitor", "run",
-                      "NetworkProcessor is NOT operational, closing it!");
+              LOG.warn("NetworkProcessor is NOT operational, closing it!");
               try {
                 close();
               } catch (IOException e) {

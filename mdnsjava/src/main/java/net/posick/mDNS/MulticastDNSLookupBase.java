@@ -10,10 +10,11 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import net.posick.mDNS.utils.Misc;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
 import org.xbill.DNS.DClass;
@@ -21,7 +22,6 @@ import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.NameTooLongException;
-import org.xbill.DNS.Options;
 import org.xbill.DNS.PTRRecord;
 import org.xbill.DNS.Record;
 import org.xbill.DNS.ResolverConfig;
@@ -34,15 +34,12 @@ import org.xbill.DNS.Type;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public abstract class MulticastDNSLookupBase implements Closeable {
 
-  protected static final Logger logger = Misc.getLogger(MulticastDNSLookupBase.class.getName(),
-      Options.check("mdns_verbose") || Options.check("verbose"));
+  private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSLookupBase.class);
 
-  protected static Querier defaultQuerier;
+  private static Querier defaultQuerier;
+  private static List<Name> defaultSearchPath;
 
-  protected static List<Name> defaultSearchPath;
-
-
-  protected static final Comparator SERVICE_RECORD_SORTER = (o1, o2) -> {
+  private static final Comparator SERVICE_RECORD_SORTER = (o1, o2) -> {
     if (o1 instanceof Record) {
       if (o2 instanceof Record) {
         final Record thisRecord = (Record) o1;
@@ -176,28 +173,21 @@ public abstract class MulticastDNSLookupBase implements Closeable {
       throws IOException {
     this();
 
-    if ((names != null) && (names.length > 0)) {
-      List domainNames = new ArrayList();
-      for (int index = 0; index < names.length; index++) {
-        if (names[index].endsWith(".")) {
+    if (ArrayUtils.isNotEmpty(names)) {
+      List<Name> domainNames = new ArrayList<>();
+      for (String name : names) {
+        if (name.endsWith(".")) {
           try {
-            domainNames.add(new Name(names[index]));
+            domainNames.add(new Name(name));
           } catch (TextParseException e) {
-            if (logger.isLoggable(Level.FINE)) {
-              logger
-                  .log(Level.FINE, "Error parsing \"" + names[index] + "\" - " + e.getMessage(), e);
-            }
+            LOG.error("Error parsing {}", name, e);
           }
         } else {
           for (Name path : searchPath) {
             try {
-              domainNames.add(new Name(names[index] + "." + path));
+              domainNames.add(new Name(name + "." + path));
             } catch (TextParseException e) {
-              if (logger.isLoggable(Level.FINE)) {
-                logger.log(Level.FINE,
-                    "Error parsing \"" + (names[index] + "." + path) + "\" - " + e
-                        .getMessage(), e);
-              }
+              LOG.error("Error parsing {}.{}", name, path, e);
             }
           }
         }
@@ -213,8 +203,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
   }
 
 
-  protected MulticastDNSLookupBase()
-      throws IOException {
+  protected MulticastDNSLookupBase() throws IOException {
     super();
 
     querier = getDefaultQuerier();
@@ -253,7 +242,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
    * @param names Names to add
    */
   public void addNames(final List<Name> names) {
-    if ((names != null) && (names.size() > 0)) {
+    if (CollectionUtils.isNotEmpty(names)) {
       this.names.addAll(names);
       buildQueries();
     }
@@ -265,7 +254,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
    * @param searchPath Name to add to search path
    */
   public void addSearchPath(final List<Name> searchPath) {
-    if ((searchPath != null) && (searchPath.size() > 0)) {
+    if (CollectionUtils.isNotEmpty(searchPath)) {
       this.searchPath.addAll(searchPath);
       buildQueries();
     }
@@ -354,9 +343,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
               }
               searchNames.add(absoluteName);
             } catch (NameTooLongException e) {
-              if (logger.isLoggable(Level.FINE)) {
-                logger.log(Level.FINE, e.getMessage(), e);
-              }
+              LOG.error("Name too long.", e);
             }
           }
         }
@@ -381,7 +368,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
       try {
         defaultQuerier = new MulticastDNSQuerier(true, true);
       } catch (IOException e) {
-        logger.log(Level.WARNING, e.getMessage(), e);
+        LOG.warn("Error creating new multicast dns querier", e);
       }
     }
 
@@ -398,7 +385,6 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     if (defaultSearchPath == null) {
       Name[] configuredSearchPath = ResolverConfig.getCurrentConfig().searchPath();
 
-      int startPos = 0;
       if (configuredSearchPath != null) {
         defaultSearchPath = Arrays.asList(configuredSearchPath);
       } else {
@@ -463,8 +449,7 @@ public abstract class MulticastDNSLookupBase implements Closeable {
             service = new ServiceInstance((SRVRecord) record);
             services.put(service.getName(), service);
           } catch (TextParseException e) {
-            logger.log(Level.WARNING,
-                "Error processing SRV record \"" + record.getName() + "\" - " + e.getMessage(), e);
+            LOG.error("Error processing SRV record {}", record.getName(), e);
           }
           break;
         case Type.PTR:

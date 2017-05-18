@@ -51,25 +51,15 @@ public class ServiceName extends Name {
   }
 
   private String instance;
-
   private String fullSubType;
-
   private String subType;
-
   private String fullType;
-
   private String type;
-
   private String domain;
-
   private String protocol;
-
   private String application;
-
   private final Name serviceTypeName;
-
   private final Name serviceRRName;
-
 
   public ServiceName(final String s) throws TextParseException {
     this(new Name(s));

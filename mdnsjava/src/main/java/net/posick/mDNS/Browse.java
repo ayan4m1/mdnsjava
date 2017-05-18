@@ -5,12 +5,12 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Flags;
 import org.xbill.DNS.Header;
@@ -24,8 +24,7 @@ import org.xbill.DNS.Type;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class Browse extends MulticastDNSLookupBase {
-
-  static final Logger logger = Logger.getLogger(Browse.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(Browse.class.getName());
 
   private final Executors executors = Executors.newInstance();
   protected List<BrowseOperation>browseOperations = new LinkedList<>();
@@ -116,30 +115,24 @@ public class Browse extends MulticastDNSLookupBase {
     }
 
     public void run() {
-      if (logger.isLoggable(Level.FINE)) {
-        long now = System.currentTimeMillis();
-        logger.logp(Level.FINE, getClass().getName(), "run",
-            "Broadcasting Query for Browse." + (lastBroadcast <= 0 ? ""
-                : " Last broadcast was " + ((double) (now - lastBroadcast) / (double) 1000)
-                    + " seconds ago."));
-        lastBroadcast = System.currentTimeMillis();
-      }
+      long now = System.currentTimeMillis();
+      LOG.trace("Broadcasting Query for Browse." + (lastBroadcast <= 0 ? ""
+              : " Last broadcast was " + ((double) (now - lastBroadcast) / (double) 1000)
+                  + " seconds ago."));
+      lastBroadcast = System.currentTimeMillis();
 
 
       broadcastDelay = broadcastDelay > 0 ? Math.min(broadcastDelay * 2, 3600) : 1;
       executors.schedule(this, broadcastDelay, TimeUnit.SECONDS);
 
-      if (logger.isLoggable(Level.FINE)) {
-        logger.logp(Level.FINE, getClass().getName(), "run",
-            "Broadcasting Query for Browse Operation.");
-      }
+      LOG.trace("Broadcasting Query for Browse Operation.");
 
       try {
         for (Message query : queries) {
           querier.broadcast((Message) query.clone(), false);
         }
       } catch (Exception e) {
-        logger.log(Level.WARNING, "Error broadcasting query for browse - " + e.getMessage(), e);
+        LOG.warn("Error broadcasting query for browse", e);
       }
     }
 

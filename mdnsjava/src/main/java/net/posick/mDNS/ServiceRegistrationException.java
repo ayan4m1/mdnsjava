@@ -60,6 +60,4 @@ public class ServiceRegistrationException extends IOException {
     return (message != null) ? (s + ": [Reason: " + reason + "] " + message)
         : s + ": [Reason: " + reason + "]";
   }
-
-  ;
 }

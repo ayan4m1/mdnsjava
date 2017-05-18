@@ -9,11 +9,14 @@ import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.logging.Level;
+import java.util.Collections;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Options;
 
 public class DatagramProcessor extends NetworkProcessor {
+  private static final Logger LOG = LoggerFactory.getLogger(DatagramProcessor.class);
 
   // The default UDP datagram payload size
   private int maxPayloadSize = 512;
@@ -25,8 +28,7 @@ public class DatagramProcessor extends NetworkProcessor {
   private long lastPacket;
 
   public DatagramProcessor(final InetAddress ifaceAddress, final InetAddress address,
-      final int port, final PacketListener listener)
-      throws IOException {
+      final int port, final PacketListener listener) throws IOException {
     super(ifaceAddress, address, port, listener);
 
     if (address != null) {
@@ -44,13 +46,8 @@ public class DatagramProcessor extends NetworkProcessor {
             .equalsIgnoreCase(temp) || "y".equalsIgnoreCase(temp);
       }
 
-      if ((temp = Options.value("mdns_socket_ttl")) != null && temp.length() > 0) {
-        try {
-          ttl = Integer.valueOf(temp);
-        } catch (NumberFormatException e) {
-          // ignore
-        }
-      }
+      int tempTtl = Options.intValue("mdns_socket_ttl");
+      ttl = tempTtl < 0 ? ttl : tempTtl;
 
       reuseAddress = true;
 
@@ -84,17 +81,15 @@ public class DatagramProcessor extends NetworkProcessor {
       try {
         mtu = netIface.getMTU();
       } catch (SocketException e) {
+        LOG.warn("Error getting MTU from Network Interface {}. Using default MTU.", netIface);
         netIface = null;
-        logger.logp(Level.WARNING, getClass().getName(), "DatagramProcessor.<init>",
-            "Error getting MTU from Network Interface " + netIface + ". Using default MTU.");
       }
     }
 
     if (netIface == null) {
-      Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+      List<NetworkInterface> ifaceList = Collections.list(NetworkInterface.getNetworkInterfaces());
       int smallestMtu = DEFAULT_MTU;
-      while (ifaces.hasMoreElements()) {
-        NetworkInterface iface = ifaces.nextElement();
+      for (NetworkInterface iface : ifaceList) {
         if (!iface.isLoopback() && !iface.isVirtual() && iface.isUp()) {
           int mtu = iface.getMTU();
           if (mtu < smallestMtu) {
@@ -116,13 +111,9 @@ public class DatagramProcessor extends NetworkProcessor {
       try {
         ((MulticastSocket) socket).leaveGroup(address);
       } catch (SecurityException e) {
-        logger.log(Level.WARNING,
-            "A Security error occurred while leaving Multicast Group \"" + Arrays.toString(address.getAddress())
-                + "\" - " + e.getMessage(), e);
+        LOG.warn("A security error occured while leaving Multicast Group '{}'", Arrays.toString(address.getAddress()), e);
       } catch (Exception e) {
-        logger.log(Level.WARNING,
-            "Error leaving Multicast Group \"" + Arrays.toString(address.getAddress()) + "\" - " + e.getMessage(),
-            e);
+        LOG.warn("Error leaving Multicast Group '{}'", Arrays.toString(address.getAddress()), e);
       }
     }
 
@@ -165,20 +156,17 @@ public class DatagramProcessor extends NetworkProcessor {
         lastPacket = System.currentTimeMillis();
         if (datagram.getLength() > 0) {
           Packet packet = new Packet(datagram);
-          if (logger.isLoggable(Level.FINE)) {
-            logger.logp(Level.FINE, getClass().getName(), "run",
-                "-----> Received packet " + packet.id + " <-----");
-            packet.timer.start();
-          }
+          LOG.trace( "-----> Received packet {} <-----", packet.id);
+          packet.timer.start();
+
           executors.executeNetworkTask(new PacketRunner(listener, packet));
         }
       } catch (SecurityException e) {
-        logger.log(Level.WARNING,
-            "Security issue receiving data from \"" + address + "\" - " + e.getMessage(), e);
+        LOG.warn("Security issue receiving data from {}", address, e);
       } catch (Exception e) {
-        if (!exit || logger.isLoggable(Level.FINE)) {
-          logger.log(Level.WARNING,
-              "Error receiving data from \"" + address + "\" - " + e.getMessage(), e);
+        if (!exit) {
+          LOG.trace("Error receiving data from {}", address, e);
+
         }
       }
     }
@@ -199,7 +187,7 @@ public class DatagramProcessor extends NetworkProcessor {
       }
       socket.send(packet);
     } catch (IOException e) {
-      logger.log(Level.FINE, "Error sending datagram to \"" + packet.getSocketAddress() + "\".", e);
+      LOG.trace("Error sending datagram to {}", packet.getSocketAddress(), e);
 
       if ("no route to host".equalsIgnoreCase(e.getMessage())) {
         close();

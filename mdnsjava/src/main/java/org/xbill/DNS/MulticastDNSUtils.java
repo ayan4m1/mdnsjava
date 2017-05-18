@@ -11,19 +11,17 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import net.posick.mDNS.utils.Misc;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class MulticastDNSUtils {
 
-  private static final Logger logger = Misc
-      .getLogger(MulticastDNSUtils.class, Options.check("mdns_verbose"));
+  private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSUtils.class);
 
   /**
    * Tests if the response message answers all of the questions within the query message.
@@ -225,8 +223,7 @@ public class MulticastDNSUtils {
           }
         }
       } catch (Exception e) {
-        logger.logp(Level.FINE, MulticastDNSUtils.class.getName(), "getTargetFromRecord",
-            "No target specified in record " + record.getClass().getSimpleName() + ": " + record);
+        LOG.error("No target specified in record " + record.getClass().getSimpleName() + ": " + record);
       }
     }
 
