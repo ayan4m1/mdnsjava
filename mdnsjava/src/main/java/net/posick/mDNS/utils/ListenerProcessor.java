@@ -1,14 +1,15 @@
 package net.posick.mDNS.utils;
 
+import com.google.common.collect.Sets;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The ListenerSupport class implements a performant, thread safe, listener subsystem
@@ -22,7 +23,7 @@ import java.util.logging.Logger;
 @SuppressWarnings("unchecked")
 public class ListenerProcessor<T> implements Closeable {
 
-  private static final Logger logger = Logger.getLogger(ListenerProcessor.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(ListenerProcessor.class);
 
   public static class StopDispatchException extends Exception {
     private static final long serialVersionUID = 201401211841L;
@@ -41,22 +42,21 @@ public class ListenerProcessor<T> implements Closeable {
 
     public Object invoke(final Object proxy, final Method method, final Object[] args)
         throws Throwable {
-      Object[] tempListeners = processor.listeners;
-      for (Object listener : tempListeners) {
+      for (Object listener : processor.listeners) {
         try {
           method.invoke(listener, args);
         } catch (IllegalArgumentException | IllegalAccessException e) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.warn(e.getMessage(), e);
           throw e;
         } catch (InvocationTargetException e) {
           if (e.getTargetException() instanceof StopDispatchException) {
             break;
           } else {
-            logger.log(Level.WARNING, e.getTargetException().getMessage(), e.getTargetException());
+            LOG.warn(e.getTargetException().getMessage(), e.getTargetException());
             throw e.getTargetException();
           }
         } catch (Exception e) {
-          logger.log(Level.WARNING, e.getMessage(), e);
+          LOG.error(e.getMessage(), e);
           throw e;
         }
       }
@@ -66,9 +66,7 @@ public class ListenerProcessor<T> implements Closeable {
   }
 
   private final Class<T> iface;
-
-  private Object[] listeners = new Object[0];
-
+  private Set<Object> listeners = Sets.newConcurrentHashSet();
   private T dispatcher;
 
   public ListenerProcessor(final Class<T> iface) {
@@ -76,13 +74,6 @@ public class ListenerProcessor<T> implements Closeable {
     if (!iface.isInterface()) {
       throw new IllegalArgumentException("\"" + iface.getName() + "\" is not an interface.");
     }
-  }
-
-  public void close() throws IOException {
-    for (int i = 0; i < this.listeners.length; i++) {
-      this.listeners[i] = null;
-    }
-    this.listeners = new Object[0];
   }
 
   public T getDispatcher() {
@@ -93,45 +84,28 @@ public class ListenerProcessor<T> implements Closeable {
     return dispatcher;
   }
 
-  public synchronized T registerListener(final T listener) {
+  public T registerListener(final T listener) {
     // Make sure the listener is not null and that it implements the Interface
-    if ((listener != null) && iface.isAssignableFrom(listener.getClass())) {
-      // Check to ensure the listener does not exist
-      for (Object listener1 : listeners) {
-        if (listener1.equals(listener)) {
-          // already registered
-          return (T) listener1;
-        }
-      }
-
-      T[] temp = (T[]) Arrays.copyOf(listeners, listeners.length + 1);
-      temp[temp.length - 1] = listener;
-      this.listeners = temp;
-
+    if (listener != null && iface.isAssignableFrom(listener.getClass())) {
+      this.listeners.add(listener);
       return listener;
-    } else {
-      return null;
-    }
-  }
-
-  public synchronized T unregisterListener(final T listener) {
-    if (listener != null) {
-      T[] temp = (T[]) Arrays.copyOf(listeners, listeners.length);
-
-      // Find listener
-      for (int index = 0; index < temp.length; index++) {
-        if ((temp[index] == listener) || temp[index].equals(listener)) {
-          Object foundListener = temp[index];
-
-          // Found listener, delete it and shift remaining listeners back one position.
-          System.arraycopy(temp, index + 1, temp, index, temp.length - index - 1);
-          this.listeners = Arrays.copyOf(temp, temp.length - 1);
-
-          return (T) foundListener;
-        }
-      }
     }
 
     return null;
+  }
+
+  public T unregisterListener(final T listener) {
+    if (listener != null) {
+      boolean removed = this.listeners.remove(listener);
+      return removed ? listener : null;
+    }
+
+    return null;
+  }
+
+  @Override
+  public void close() throws IOException {
+    this.listeners.clear();
+    this.listeners = Sets.newConcurrentHashSet();
   }
 }

@@ -24,7 +24,6 @@ public interface Querier extends Resolver, Closeable {
   int DEFAULT_RESPONSE_WAIT_TIME = 500;
   int DEFAULT_RETRY_INTERVAL = 1000;
 
-
   /**
    * Broadcasts a name resolution query to the network, returning immediately. The response(s)
    * are delegated to the ResolverListeners registered via the registerListener operation or
@@ -38,29 +37,21 @@ public interface Querier extends Resolver, Closeable {
   void broadcast(Message message, boolean addKnownAnswers) throws IOException;
 
   /**
-   * Returns the Multicast domains pertinent for this Responder.
-   *
    * @return The Mulitcast domains pertinent for this Responder
    */
   List<Name> getMulticastDomains();
 
   /**
-   * Returns true is IPv4 is enabled.
-   *
    * @return true is IPv4 is enabled
    */
   boolean isIPv4();
 
   /**
-   * Returns true is IPv6 is enabled.
-   *
    * @return true is IPv6 is enabled
    */
   boolean isIPv6();
 
   /**
-   * Returns true if the Querier is fully operational, all threads and executors are running.
-   *
    * @return true if the Querier is fully operational, all threads and executors are running
    */
   boolean isOperational();

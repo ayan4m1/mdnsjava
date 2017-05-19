@@ -106,36 +106,23 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     return -1;
   };
 
-
   protected List<Name> names;
-
   protected Querier querier;
-
   protected List<Name> searchPath;
-
   protected int type = Type.ANY;
-
   protected Object browseID;
-
   protected int dclass = DClass.ANY;
-
   protected List<Message> queries;
 
-
-  public MulticastDNSLookupBase(final Name... names)
-      throws IOException {
+  public MulticastDNSLookupBase(final Name... names) throws IOException {
     this(Arrays.asList(names), Type.ANY, DClass.ANY);
   }
 
-
-  public MulticastDNSLookupBase(final List<Name> names, final int type)
-      throws IOException {
+  public MulticastDNSLookupBase(final List<Name> names, final int type) throws IOException {
     this(names, type, DClass.ANY);
   }
 
-
-  public MulticastDNSLookupBase(final List<Name> names, final int type, final int dclass)
-      throws IOException {
+  public MulticastDNSLookupBase(final List<Name> names, final int type, final int dclass) throws IOException {
     this();
 
     this.names = names;
@@ -144,33 +131,23 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     buildQueries();
   }
 
-
-  public MulticastDNSLookupBase(final String... names)
-      throws IOException {
+  public MulticastDNSLookupBase(final String... names) throws IOException {
     this(names, Type.ANY, DClass.ANY);
   }
 
-
-  public MulticastDNSLookupBase(final String name, final int type)
-      throws IOException {
+  public MulticastDNSLookupBase(final String name, final int type) throws IOException {
     this(new String[]{name}, type, DClass.ANY);
   }
 
-
-  public MulticastDNSLookupBase(final String name, final int type, final int dclass)
-      throws IOException {
+  public MulticastDNSLookupBase(final String name, final int type, final int dclass) throws IOException {
     this(new String[]{name}, type, dclass);
   }
 
-
-  public MulticastDNSLookupBase(final String[] names, final int type)
-      throws IOException {
+  public MulticastDNSLookupBase(final String[] names, final int type) throws IOException {
     this(names, type, DClass.ANY);
   }
 
-
-  public MulticastDNSLookupBase(final String[] names, final int type, final int dclass)
-      throws IOException {
+  public MulticastDNSLookupBase(final String[] names, final int type, final int dclass) throws IOException {
     this();
 
     if (ArrayUtils.isNotEmpty(names)) {
@@ -202,14 +179,12 @@ public abstract class MulticastDNSLookupBase implements Closeable {
     }
   }
 
-
   protected MulticastDNSLookupBase() throws IOException {
     super();
 
     querier = getDefaultQuerier();
     searchPath = getDefaultSearchPath();
   }
-
 
   protected MulticastDNSLookupBase(final Message message) throws IOException {
     this();
@@ -234,7 +209,6 @@ public abstract class MulticastDNSLookupBase implements Closeable {
       names = new ArrayList<>(list);
     }
   }
-
 
   /**
    * Adds the name to the list of names to browse
@@ -294,7 +268,6 @@ public abstract class MulticastDNSLookupBase implements Closeable {
   public synchronized void setQuerier(final Querier querier) {
     this.querier = querier;
   }
-
 
   /**
    * Sets the search path to use when performing this lookup. This overrides

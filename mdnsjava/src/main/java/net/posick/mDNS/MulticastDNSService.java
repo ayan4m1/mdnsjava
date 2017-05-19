@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.Stack;
 import net.posick.mDNS.Lookup.Domain;
 import net.posick.mDNS.ServiceRegistrationException.REASON;
-import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
@@ -552,8 +551,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         }
       }
 
-      Lookup lookup = new Lookup(Arrays.asList(typeName, fullTypeName), Type.PTR, DClass.ANY);
-      try {
+      try (Lookup lookup = new Lookup(Arrays.asList(typeName, fullTypeName), Type.PTR, DClass.ANY)) {
         boolean found = false;
         List<Record> results = ListUtils.emptyIfNull(lookup.lookupRecords());
         for (Record record : results) {
@@ -562,13 +560,9 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           }
         }
         return !found;
-      } finally {
-        lookup.close();
       }
     }
   }
-
-  protected Executors executors = Executors.newInstance();
 
   protected List<ServiceDiscoveryOperation> discoveryOperations = new ArrayList<>();
 
@@ -632,7 +626,6 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       register.close();
     }
   }
-
 
   /**
    * Starts a Service Discovery Browse Operation and returns an identifier to be used later to stop

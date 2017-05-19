@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.SRVRecord;
 import org.xbill.DNS.TXTRecord;
@@ -69,19 +71,18 @@ public class ServiceInstance implements Serializable {
   }
 
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
-      final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
+      final int port, final Name host, final InetAddress[] addresses,
       final String... textRecords) {
-    this(name, priority, weight, port, host/* , ttl */, addresses, parseTextRecords(textRecords));
+    this(name, priority, weight, port, host, addresses, parseTextRecords(textRecords));
   }
 
   public ServiceInstance(final ServiceName name, final int priority, final int weight,
-      final int port, final Name host/* , long ttl */, final InetAddress[] addresses,
+      final int port, final Name host, final InetAddress[] addresses,
       final TXTRecord... textRecords) {
-    this(name, priority, weight, port, host/* , ttl */, addresses, parseTextRecords(textRecords));
+    this(name, priority, weight, port, host, addresses, parseTextRecords(textRecords));
   }
 
-  public ServiceInstance(final SRVRecord srv)
-      throws TextParseException {
+  public ServiceInstance(final SRVRecord srv) throws TextParseException {
     this(new ServiceName(srv.getName()), srv.getPriority(), srv.getWeight(), srv.getPort(),
         srv.getTarget(), null, (Map) null);
   }
@@ -273,10 +274,10 @@ public class ServiceInstance implements Serializable {
       Map textAttributes = new LinkedHashMap();
       Object[] array = (Object[]) rawText;
 
-      if ((array != null) && (array.length > 0)) {
+      if (ArrayUtils.isNotEmpty(array)) {
         textAttributes = new LinkedHashMap();
-        for (int index = 0; index < array.length; index++) {
-          Map map = parseTextRecords(array[index]);
+        for (Object anArray : array) {
+          Map map = parseTextRecords(anArray);
           if ((map != null) && (map.size() > 0)) {
             textAttributes.putAll(map);
           }
@@ -289,7 +290,7 @@ public class ServiceInstance implements Serializable {
       return parseTextRecords(((TXTRecord) rawText).getStrings().toArray());
     } else {
       Map textAttributes = new LinkedHashMap();
-      String[] pairs = split(rawText.toString());
+      String[] pairs = StringUtils.split(rawText.toString());
       for (String pair : pairs) {
         if ((pair != null) && (pair.length() > 0)) {
           String key = "";
@@ -312,43 +313,5 @@ public class ServiceInstance implements Serializable {
 
       return textAttributes;
     }
-  }
-
-  private static String[] split(final String text) {
-    ArrayList list = new ArrayList();
-    StringBuilder builder = new StringBuilder();
-
-    boolean inQuote = false;
-    boolean escape = false;
-    char[] chars = (text + '\n').toCharArray();
-
-    for (int index = 0; index < chars.length; index++) {
-      if (!Character.isWhitespace(chars[index])) {
-        switch (chars[index]) {
-          case '\\':
-            escape = true;
-            break;
-          case '\"':
-            if (!escape) {
-              inQuote = !inQuote;
-              break;
-            } else {
-              builder.append(chars[index]);
-            }
-            break;
-          default:
-            builder.append(chars[index]);
-            if (escape) {
-              escape = false;
-            }
-            break;
-        }
-      } else {
-        list.add(builder.toString());
-        builder.setLength(0);
-      }
-    }
-
-    return (String[]) list.toArray(new String[list.size()]);
   }
 }

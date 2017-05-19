@@ -92,12 +92,9 @@ public class Executors {
           t.setPriority(threadPriority);
           t.setContextClassLoader(NetworkProcessor.class.getClassLoader());
           return t;
-        }, new RejectedExecutionHandler() {
-      public void rejectedExecution(final Runnable r, final ThreadPoolExecutor executor) {
-        LOG.warn("Network Processing Queue Rejected Packet it is FULL. [size: " + executor.getQueue()
-                .size() + "]");
-      }
-    });
+        },
+        (r, executor) -> LOG.warn("Network Processing Queue Rejected Packet it is FULL. [size: " + executor.getQueue()
+                .size() + "]"));
 
     getThenSet("mdns_executor_core_threads", executor::setCorePoolSize);
     getThenSet("mdns_executor_max_threads", executor::setMaximumPoolSize);

@@ -11,6 +11,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import net.posick.mDNS.utils.Wait;
+import org.apache.commons.collections4.CollectionUtils;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
@@ -137,7 +138,7 @@ public class Lookup extends MulticastDNSLookupBase {
     final Set<Domain> domains = Collections.synchronizedSet(new HashSet());
     final List<Exception> exceptions = Collections.synchronizedList(new LinkedList());
 
-    if ((queries != null) && (queries.size() > 0)) {
+    if (CollectionUtils.isNotEmpty(queries)) {
       lookupRecordsAsync(new RecordListener() {
         public void handleException(final Object id, final Exception e) {
           exceptions.add(e);
@@ -229,7 +230,7 @@ public class Lookup extends MulticastDNSLookupBase {
   public List<ServiceInstance> lookupServices() throws IOException {
     final List<ServiceInstance> results = new ArrayList();
     results.addAll(Arrays.asList(extractServiceInstances(lookupRecords())));
-    return  results;
+    return results;
   }
 
   public static List<Record> lookupRecords(Name name) throws IOException {

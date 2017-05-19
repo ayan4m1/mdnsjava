@@ -1,5 +1,6 @@
 package net.posick.mDNS;
 
+import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -8,6 +9,7 @@ import java.util.stream.Collectors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xbill.DNS.ExtendedResolver;
@@ -39,17 +41,11 @@ public class MulticastDNSQuerier implements Querier {
   protected static class Resolution implements ResolverListener {
 
     private MulticastDNSQuerier querier = null;
-
     private Message query = null;
-
     private ResolverListener listener = null;
-
     private final List<Response> responses = new LinkedList<>();
-
     private int requestsSent;
-
     private final List requestIDs = new ArrayList();
-
     private boolean mdnsVerbose = false;
 
 
@@ -85,7 +81,7 @@ public class MulticastDNSQuerier implements Querier {
 
             for (int section : new int[]{Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY}) {
               Record[] records = message.getSectionArray(section);
-              if ((records != null) && (records.length > 0)) {
+              if (ArrayUtils.isNotEmpty(records)) {
                 for (Record record : records) {
                   if (!response.findRecord(record)) {
                     response.addRecord(record, section);
@@ -199,8 +195,7 @@ public class MulticastDNSQuerier implements Querier {
       requestIDs.clear();
       boolean unicast = false;
       boolean multicast = false;
-      if (MulticastDNSService.hasUnicastDomains(query) && (querier.unicastResolvers != null) && (
-          querier.unicastResolvers.length > 0)) {
+      if (MulticastDNSService.hasUnicastDomains(query) && CollectionUtils.isNotEmpty(querier.unicastResolvers)) {
         for (Resolver resolver : querier.unicastResolvers) {
           unicast = true;
           requestIDs.add(resolver.sendAsync(query, this));
@@ -208,8 +203,7 @@ public class MulticastDNSQuerier implements Querier {
         }
       }
 
-      if (MulticastDNSService.hasMulticastDomains(query) && (querier.multicastResponders != null)
-          && (querier.multicastResponders.length > 0)) {
+      if (MulticastDNSService.hasMulticastDomains(query) && CollectionUtils.isNotEmpty(querier.multicastResponders)) {
         for (Querier responder : querier.multicastResponders) {
           multicast = true;
           requestIDs.add(responder.sendAsync(query, this));
@@ -256,7 +250,7 @@ public class MulticastDNSQuerier implements Querier {
     }
   }
 
-  protected ListenerProcessor<ResolverListener> resolverListenerProcessor = new ListenerProcessor<ResolverListener>(
+  protected ListenerProcessor<ResolverListener> resolverListenerProcessor = new ListenerProcessor<>(
       ResolverListener.class);
 
   protected ResolverListener resolverListenerDispatcher = resolverListenerProcessor.getDispatcher();
@@ -265,11 +259,9 @@ public class MulticastDNSQuerier implements Querier {
 
   protected boolean ipv6 = false;
 
-  protected Querier[] multicastResponders;
+  protected List<Querier> multicastResponders;
 
-  protected Resolver[] unicastResolvers;
-
-  private final boolean mdnsVerbose;
+  protected List<Resolver> unicastResolvers;
 
   protected ResolverListener resolverDispatch = new ResolverListener() {
     public void handleException(final Object id, final Exception e) {
@@ -285,9 +277,8 @@ public class MulticastDNSQuerier implements Querier {
    * Constructs a new IPv4 mDNS Querier using the default Unicast DNS servers for the system.
    */
   public MulticastDNSQuerier() throws IOException {
-    this(true, false, new Resolver[]{new ExtendedResolver()});
+    this(true, false, Lists.newArrayList(new ExtendedResolver()));
   }
-
 
   /**
    * Constructs a new mDNS Querier using the default Unicast DNS servers for the system.
@@ -295,7 +286,7 @@ public class MulticastDNSQuerier implements Querier {
    * @param ipv6 if IPv6 should be enabled.
    */
   public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6) throws IOException {
-    this(ipv4, ipv6, (Resolver[]) null);
+    this(ipv4, ipv6, new ArrayList<>());
   }
 
 
@@ -307,7 +298,7 @@ public class MulticastDNSQuerier implements Querier {
    */
   public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6, final Resolver unicastResolver)
       throws IOException {
-    this(ipv4, ipv6, new Resolver[]{unicastResolver});
+    this(ipv4, ipv6, Lists.newArrayList(unicastResolver));
   }
 
 
@@ -317,12 +308,12 @@ public class MulticastDNSQuerier implements Querier {
    * @param ipv6 if IPv6 should be enabled.
    * @param unicastResolvers The Unicast DNS Resolvers
    */
-  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6, final Resolver[] unicastResolvers)
+  public MulticastDNSQuerier(final boolean ipv4, final boolean ipv6, final List<Resolver> unicastResolvers)
       throws IOException {
-    mdnsVerbose = Options.check("mdns_verbose");
+    boolean mdnsVerbose = Options.check("mdns_verbose");
 
-    if ((unicastResolvers == null) || (unicastResolvers.length == 0)) {
-      this.unicastResolvers = new Resolver[]{new ExtendedResolver()};
+    if (CollectionUtils.isEmpty(unicastResolvers)) {
+      this.unicastResolvers = Lists.newArrayList(new ExtendedResolver());
     } else {
       this.unicastResolvers = unicastResolvers;
     }
@@ -360,15 +351,14 @@ public class MulticastDNSQuerier implements Querier {
     }
 
     if ((ipv4Responder != null) && (ipv6Responder != null)) {
-      multicastResponders = new Querier[]{ipv4Responder,
-          ipv6Responder};
+      multicastResponders = Lists.newArrayList(ipv4Responder, ipv6Responder);
       ipv4Responder.registerListener(resolverDispatch);
       ipv6Responder.registerListener(resolverDispatch);
     } else if (ipv4Responder != null) {
-      multicastResponders = new Querier[]{ipv4Responder};
+      multicastResponders = Lists.newArrayList(ipv4Responder);
       ipv4Responder.registerListener(resolverDispatch);
     } else if (ipv6Responder != null) {
-      multicastResponders = new Querier[]{ipv6Responder};
+      multicastResponders = Lists.newArrayList(ipv6Responder);
       ipv6Responder.registerListener(resolverDispatch);
     } else {
       if (ipv4_exception != null) {
@@ -436,7 +426,7 @@ public class MulticastDNSQuerier implements Querier {
   }
 
 
-  public Resolver[] getUnicastResolvers() {
+  public List<Resolver> getUnicastResolvers() {
     return unicastResolvers;
   }
 
@@ -472,10 +462,13 @@ public class MulticastDNSQuerier implements Querier {
 
 
   public ResolverListener registerListener(final ResolverListener listener) {
-    for (Querier querier : multicastResponders) {
-      querier.registerListener(listener);
-    }
+    multicastResponders.forEach(querier -> querier.registerListener(listener));
+    return listener;
+  }
 
+
+  public ResolverListener unregisterListener(final ResolverListener listener) {
+    multicastResponders.forEach(querier -> querier.unregisterListener(listener));
     return listener;
   }
 
@@ -493,28 +486,21 @@ public class MulticastDNSQuerier implements Querier {
     }
   }
 
-
   /**
    * {@inheritDoc}
    */
-  public Object sendAsync(final Message query, final ResolverListener listener) {
+  public Resolution sendAsync(final Message query, final ResolverListener listener) {
     Resolution res = new Resolution(this, query, listener);
     res.start();
     return res;
   }
 
-
   /**
    * {@inheritDoc}
    */
   public void setEDNS(final int level) {
-    for (Querier querier : multicastResponders) {
-      querier.setEDNS(level);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setEDNS(level);
-    }
+    multicastResponders.forEach(querier -> querier.setEDNS(level));
+    unicastResolvers.forEach(resolver -> resolver.setEDNS(level));
   }
 
 
@@ -522,13 +508,8 @@ public class MulticastDNSQuerier implements Querier {
    * {@inheritDoc}
    */
   public void setEDNS(final int level, final int payloadSize, final int flags, final List options) {
-    for (Querier querier : multicastResponders) {
-      querier.setEDNS(level, payloadSize, flags, options);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setEDNS(level, payloadSize, flags, options);
-    }
+    multicastResponders.forEach(querier -> querier.setEDNS(level, payloadSize, flags, options));
+    unicastResolvers.forEach(resolver -> resolver.setEDNS(level, payloadSize, flags, options));
   }
 
 
@@ -536,103 +517,60 @@ public class MulticastDNSQuerier implements Querier {
    * {@inheritDoc}
    */
   public void setIgnoreTruncation(final boolean flag) {
-    for (Querier querier : multicastResponders) {
-      querier.setIgnoreTruncation(flag);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setIgnoreTruncation(flag);
-    }
+    multicastResponders.forEach(querier -> querier.setIgnoreTruncation(flag));
+    unicastResolvers.forEach(resolver -> resolver.setIgnoreTruncation(flag));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setPort(final int port) {
-    for (Querier querier : multicastResponders) {
-      querier.setPort(port);
-    }
-  }
+    multicastResponders.forEach(querier -> querier.setPort(port));
 
+  }
 
   /**
    * {@inheritDoc}
    */
   public void setRetryWaitTime(final int secs) {
-    for (Querier querier : multicastResponders) {
-      querier.setTimeout(secs);
-    }
+    multicastResponders.forEach(querier -> querier.setRetryWaitTime(secs));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setRetryWaitTime(final int secs, final int msecs) {
-    for (Querier querier : multicastResponders) {
-      querier.setTimeout(secs, msecs);
-    }
+    multicastResponders.forEach(querier -> querier.setRetryWaitTime(secs, msecs));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setTCP(final boolean flag) {
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setTCP(flag);
-    }
+    unicastResolvers.forEach(resolver -> resolver.setTCP(flag));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setTimeout(final int secs) {
-    for (Querier querier : multicastResponders) {
-      querier.setTimeout(secs);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setTimeout(secs);
-    }
+    multicastResponders.forEach(querier -> querier.setTimeout(secs));
+    unicastResolvers.forEach(resolver -> resolver.setTimeout(secs));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setTimeout(final int secs, final int msecs) {
-    for (Querier querier : multicastResponders) {
-      querier.setTimeout(secs, msecs);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setTimeout(secs, msecs);
-    }
+    multicastResponders.forEach(querier -> querier.setTimeout(secs, msecs));
+    unicastResolvers.forEach(resolver -> resolver.setTimeout(secs, msecs));
   }
-
 
   /**
    * {@inheritDoc}
    */
   public void setTSIGKey(final TSIG key) {
-    for (Querier querier : multicastResponders) {
-      querier.setTSIGKey(key);
-    }
-
-    for (Resolver resolver : unicastResolvers) {
-      resolver.setTSIGKey(key);
-    }
-  }
-
-
-  public ResolverListener unregisterListener(final ResolverListener listener) {
-    for (Querier querier : multicastResponders) {
-      querier.unregisterListener(listener);
-    }
-
-    return listener;
+    multicastResponders.forEach(querier -> querier.setTSIGKey(key));
+    unicastResolvers.forEach(resolver -> resolver.setTSIGKey(key));
   }
 }

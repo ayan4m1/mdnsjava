@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.utils.Executors;
+import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Cache;
@@ -287,14 +288,9 @@ public class MulticastDNSCache extends Cache implements Closeable {
       try {
         String filename = MDNS_CACHE_FILENAME;
         File file = new File(filename);
-        if (file.exists() && file.canRead()) {
-          temp = new MulticastDNSCache(filename);
-        } else {
-          temp = new MulticastDNSCache();
-        }
+        temp = file.exists() && file.canRead() ? new MulticastDNSCache(filename) : new MulticastDNSCache();
       } catch (IOException e) {
         temp = new MulticastDNSCache();
-
         LOG.warn("Error loading default cache values", e);
       }
     } catch (NoSuchFieldException e) {
@@ -480,6 +476,38 @@ public class MulticastDNSCache extends Cache implements Closeable {
     }
 
     return message;
+  }
+
+  public void updateCache(final List<Record> records, final int credibility) {
+    if (CollectionUtils.isNotEmpty(records)) {
+      for (Record record : records) {
+        try {
+          // Workaround. mDNS Uses high order DClass bit for Unicast Response OK
+          Record cacheRecord = MulticastDNSUtils.clone(record);
+          MulticastDNSUtils.setDClassForRecord(cacheRecord, cacheRecord.getDClass() & 0x7FFF);
+          if (cacheRecord.getTTL() > 0) {
+            SetResponse response = lookupRecords(cacheRecord.getName(), cacheRecord.getType(), Credibility.ANY);
+
+            List<RRset> rrs = response.answers() == null ? new ArrayList<>() : Arrays.asList(response.answers());
+            if (CollectionUtils.isNotEmpty(rrs)) {
+              List<Record> cachedRecords = MulticastDNSUtils.extractRecords(rrs);
+              if (CollectionUtils.isNotEmpty(cachedRecords)) {
+                LOG.debug("Updating Cached Record: " + cacheRecord);
+                updateRRset(cacheRecord, credibility);
+              }
+            } else {
+              LOG.debug("Caching Record: " + cacheRecord);
+              addRecord(cacheRecord, credibility, null);
+            }
+          } else {
+            // Remove unregistered records from Cache
+            removeElementCopy(cacheRecord.getName(), cacheRecord.getType());
+          }
+        } catch (Exception e) {
+          LOG.error("Error caching record - " + e.getMessage() + ": " + record, e);
+        }
+      }
+    }
   }
 
 
