@@ -10,12 +10,11 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
@@ -36,6 +35,8 @@ import org.xbill.DNS.Type;
 public class Lookup extends MulticastDNSLookupBase {
 
   private static final Logger LOG = LoggerFactory.getLogger(Lookup.class);
+
+  private static final ScheduledExecutorService POLL_EXECUTOR = Executors.newScheduledThreadPool(10);
 
   public static class Domain {
     private final Name name;
@@ -145,13 +146,13 @@ public class Lookup extends MulticastDNSLookupBase {
   }
 
   public CompletionStage<Set<Domain>> lookupDomains() throws IOException {
-    final Set<Domain> domains = Collections.synchronizedSet(new HashSet());
-    final List<Exception> exceptions = Collections.synchronizedList(new LinkedList());
-
+    final Set<Domain> domains = new HashSet<>();
+    final List<Exception> exceptions = new LinkedList<>();
+    
     CompletionStage<Set<Domain>> domainsCompletionStage = CompletableFuture.completedFuture(domains);
 
     if (CollectionUtils.isNotEmpty(queries)) {
-      lookupRecordsAsync(new RecordListener() {
+      List<Object> ids = lookupRecordsAsync(new RecordListener() {
         public void handleException(final Object id, final Exception e) {
           exceptions.add(e);
         }
@@ -175,14 +176,19 @@ public class Lookup extends MulticastDNSLookupBase {
         }
       });
 
+      try {
+        Thread.sleep(1000 * 10);
+      } catch (Exception e) {
+
+      }
+
       domainsCompletionStage = CompletableFutures.poll(() -> {
         if (CollectionUtils.isNotEmpty(exceptions)) {
           return Optional.of(domains);
         } else {
           return CollectionUtils.isEmpty(domains) ? Optional.empty() : Optional.of(domains);
         }
-      }, Duration.ofMillis(1), Executors.newScheduledThreadPool(1));
-
+      }, Duration.ofMillis(10), POLL_EXECUTOR);
     }
 
 
@@ -193,23 +199,23 @@ public class Lookup extends MulticastDNSLookupBase {
   }
 
   public CompletionStage<List<Record>> lookupRecords() throws IOException {
-    final Queue<Message> messages = new ConcurrentLinkedQueue();
-    final Queue<Exception> exceptions = new ConcurrentLinkedQueue();
+    final List<Message> messages = new ArrayList<>();
+    final List<Exception> exceptions = new ArrayList<>();
 
-    lookupRecordsAsync(new ResolverListener() {
+    List<Object> ids = lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         exceptions.add(e);
       }
 
       public void receiveMessage(final Object id, final Message m) {
         messages.add(m);
+        LOG.info("hi");
       }
     });
 
-    CompletionStage<Queue<Message>> messagesCompletionStage = CompletableFutures.poll(
+    CompletionStage<List<Message>> messagesCompletionStage = CompletableFutures.poll(
         () -> CollectionUtils.isEmpty(messages) ? Optional.empty() : Optional.of(messages),
-        Duration.ofMillis(10), Executors.newScheduledThreadPool(10));
-
+        Duration.ofMillis(10), POLL_EXECUTOR);
 
     return messagesCompletionStage.thenApply(messagesCompleted -> {
       List<Record> records = new ArrayList();
@@ -230,8 +236,8 @@ public class Lookup extends MulticastDNSLookupBase {
 
   }
 
-  public void lookupRecordsAsync(final RecordListener listener) throws IOException {
-    lookupRecordsAsync(new ResolverListener() {
+  public List<Object> lookupRecordsAsync(final RecordListener listener) throws IOException {
+    return lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         listener.handleException(id, e);
       }
@@ -246,10 +252,9 @@ public class Lookup extends MulticastDNSLookupBase {
     });
   }
 
-  public void lookupRecordsAsync(final ResolverListener listener) throws IOException {
-    for (Message query : queries) {
-      getQuerier().sendAsync(query, listener);
-    }
+  public List<Object> lookupRecordsAsync(final ResolverListener listener) throws IOException {
+    return queries.stream().map(query -> getQuerier().sendAsync(query, listener))
+        .collect(Collectors.toList());
   }
 
   public CompletionStage<List<ServiceInstance>> lookupServices() throws IOException {

@@ -16,6 +16,8 @@ import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
 import net.posick.mDNS.ServiceName;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.Name;
@@ -34,8 +36,11 @@ import org.xbill.DNS.Type;
  */
 public class ApiUsageExamplesTest {
 
-  private static final String SERVICE_NAME = "Test._org.smpte.st2071.device:device_v1.0._sub._mdc._tcp";
+  //private static final String SERVICE_NAME = "Test._org.smpte.st2071.device:device_v1.0._sub._mdc._tcp";
+  private static final String SERVICE_NAME = "_http._tcp";
 
+
+  private static final Logger LOG = LoggerFactory.getLogger(ApiUsageExamplesTest.class);
 
   /**
    * Lookup the registered Browse and Registration Domains RFC 6263 Section 11 using the default DNS
