@@ -5,6 +5,7 @@ import static org.junit.Assert.fail;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
@@ -47,7 +48,7 @@ public class ApiUsageExamplesTest {
         Constants.REGISTRATION_DOMAIN_NAME, Constants.DEFAULT_BROWSE_DOMAIN_NAME,
         Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
 
-    Set<Domain> domains = lookup.lookupDomains();
+    Set<Domain> domains = lookup.lookupDomains().toCompletableFuture().get();
     for (Lookup.Domain domain : domains) {
       System.out.println(domain);
     }
@@ -67,7 +68,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(serviceName);
-      List<ServiceInstance> services = lookup.lookupServices();
+      List<ServiceInstance> services = lookup.lookupServices().toCompletableFuture().get();
       for (ServiceInstance service : services) {
         System.out.println(service);
       }
@@ -132,7 +133,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(SERVICE_NAME, Type.ANY, DClass.IN);
-      List<Record> records = lookup.lookupRecords();
+      List<Record> records = lookup.lookupRecords().toCompletableFuture().get();
       for (Record record : records) {
         System.out.println(record);
       }
@@ -193,7 +194,7 @@ public class ApiUsageExamplesTest {
       fail("Services Registration Failed!");
     }
 
-    if (mDNSService.unregister(serviceName)) {
+    if (mDNSService.unregister(serviceName).toCompletableFuture().get(1, TimeUnit.MINUTES)) {
       System.out.println("Services Successfully Unregistered: \n\t" + serviceName);
     } else {
       System.err.println("Services Unregistration Failed!");

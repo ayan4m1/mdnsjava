@@ -1,10 +1,19 @@
 package net.posick.mDNS;
 
 import com.google.common.collect.Lists;
+import com.spotify.futures.CompletableFutures;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -49,7 +58,7 @@ public class MulticastDNSQuerier implements Querier {
     private boolean mdnsVerbose = false;
 
 
-    public Resolution(final MulticastDNSQuerier querier, final Message query,
+    Resolution(final MulticastDNSQuerier querier, final Message query,
         final ResolverListener listener) {
       this.querier = querier;
       this.query = query;
@@ -57,31 +66,32 @@ public class MulticastDNSQuerier implements Querier {
       this.mdnsVerbose = Options.check("mdns_verbose");
     }
 
-    public Message getResponse(final int timeout) throws Exception {
+    CompletionStage<Message> getResponse() {
       Message response = (Message) query.clone();
       Header header = response.getHeader();
 
-      List<Message> messages = getResults(true, timeout);
-      boolean found = false;
-      if (CollectionUtils.isNotEmpty(messages)) {
-        header.setRcode(Rcode.NOERROR);
-        header.setOpcode(Opcode.QUERY);
-        header.setFlag(Flags.QR);
+      CompletionStage<List<Message>> messagesCompletionStage = getResults();
 
-        for (Message message : messages) {
-          Header h = message.getHeader();
-          if (h.getRcode() == Rcode.NOERROR) {
-            if (h.getFlag(Flags.AA)) {
-              header.setFlag(Flags.AA);
-            }
+      return messagesCompletionStage.thenApply(messages -> {
+        boolean found = false;
+        if (CollectionUtils.isNotEmpty(messages)) {
+          header.setRcode(Rcode.NOERROR);
+          header.setOpcode(Opcode.QUERY);
+          header.setFlag(Flags.QR);
 
-            if (h.getFlag(Flags.AD)) {
-              header.setFlag(Flags.AD);
-            }
+          for (Message message : messages) {
+            Header h = message.getHeader();
+            if (h.getRcode() == Rcode.NOERROR) {
+              if (h.getFlag(Flags.AA)) {
+                header.setFlag(Flags.AA);
+              }
 
-            for (int section : new int[]{Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY}) {
-              Record[] records = message.getSectionArray(section);
-              if (ArrayUtils.isNotEmpty(records)) {
+              if (h.getFlag(Flags.AD)) {
+                header.setFlag(Flags.AD);
+              }
+
+              for (int section : new int[]{Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY}) {
+                Record[] records = (Record[]) ArrayUtils.nullToEmpty(message.getSectionArray(section));
                 for (Record record : records) {
                   if (!response.findRecord(record)) {
                     response.addRecord(record, section);
@@ -92,48 +102,36 @@ public class MulticastDNSQuerier implements Querier {
             }
           }
         }
-      }
 
-      if (!found) {
-        header.setRcode(Rcode.NXDOMAIN);
-      }
+        if (!found) {
+          header.setRcode(Rcode.NXDOMAIN);
+        }
 
-      return response;
+        return response;
+      });
     }
 
+    CompletionStage<List<Message>> getResults() {
+      CompletionStage<List<Response>> responsesCompletionStage = CompletableFutures.poll(() -> CollectionUtils.isEmpty(responses) ? Optional.empty() : Optional.of(responses),
+          Duration.ofMillis(10), Executors.newScheduledThreadPool(1));
 
-    public List<Message> getResults(final boolean waitForResults, final int timeoutValue) throws Exception {
-      if (waitForResults) {
-        long now = System.currentTimeMillis();
-        long timeout = now + timeoutValue;
-        while (!hasResults() && ((now = System.currentTimeMillis()) < timeout)) {
-          synchronized (responses) {
-            if (!hasResults()) {
-              try {
-                responses.wait(timeout - now);
-              } catch (InterruptedException e) {
-                // ignore
-              }
-            }
+      return responsesCompletionStage.thenApply(responses -> {
+        if (responses.size() > 0) {
+          List<Message> messages = responses.stream()
+              .filter(response -> !response.inError()).map(Response::getMessage).collect(Collectors.toList());
+
+          List<Exception> exceptions = responses.stream()
+              .filter(Response::inError).map(Response::getException).collect(Collectors.toList());
+
+          if (messages.size() > 0) {
+            return messages;
+          } else if (exceptions.size() > 0) {
+            throw new CompletionException(exceptions.get(0));
           }
         }
-      }
 
-      if (responses.size() > 0) {
-        List<Message> messages = responses.stream()
-            .filter(response -> !response.inError()).map(Response::getMessage).collect(Collectors.toList());
-
-        List<Exception> exceptions = responses.stream()
-            .filter(Response::inError).map(Response::getException).collect(Collectors.toList());
-
-        if (messages.size() > 0) {
-          return messages;
-        } else if (exceptions.size() > 0) {
-          throw exceptions.get(0);
-        }
-      }
-
-      return null;
+        return new ArrayList<Message>();
+      });
     }
 
     public void handleException(final Object id, final Exception exception) {
@@ -402,13 +400,9 @@ public class MulticastDNSQuerier implements Querier {
     }
   }
 
-
   public void close() throws IOException {
-    for (Querier querier : multicastResponders) {
-      IOUtils.closeQuietly(querier);
-    }
+    multicastResponders.forEach(IOUtils::closeQuietly);
   }
-
 
   /**
    * {@inheritDoc}
@@ -430,7 +424,6 @@ public class MulticastDNSQuerier implements Querier {
     return unicastResolvers;
   }
 
-
   /**
    * {@inheritDoc}
    */
@@ -451,13 +444,7 @@ public class MulticastDNSQuerier implements Querier {
    * {@inheritDoc}
    */
   public boolean isOperational() {
-    for (Querier querier : multicastResponders) {
-      if (!querier.isOperational()) {
-        return false;
-      }
-    }
-
-    return true;
+    return multicastResponders.stream().allMatch(Querier::isOperational);
   }
 
 
@@ -477,13 +464,23 @@ public class MulticastDNSQuerier implements Querier {
    * {@inheritDoc}
    */
   public Message send(final Message query) throws IOException {
-    Resolution res = new Resolution(this, query, null);
-    res.start();
     try {
-      return res.getResponse(DEFAULT_TIMEOUT);
-    } catch (Exception e ) {
+      return sendCompletionStage(query)
+          .toCompletableFuture().get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException | ExecutionException e) {
+      LOG.error("Unexepcted exception.", e);
+      throw new IOException(e);
+    } catch (TimeoutException e) {
+      LOG.error("Process timeout.", e);
       throw new IOException(e);
     }
+  }
+
+  public CompletionStage<Message> sendCompletionStage(final Message query) throws IOException {
+    Resolution res = new Resolution(this, query, null);
+    res.start();
+
+    return res.getResponse();
   }
 
   /**
