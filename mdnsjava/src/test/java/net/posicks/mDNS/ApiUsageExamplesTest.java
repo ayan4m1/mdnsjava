@@ -36,8 +36,8 @@ import org.xbill.DNS.Type;
  */
 public class ApiUsageExamplesTest {
 
-  //private static final String SERVICE_NAME = "Test._org.smpte.st2071.device:device_v1.0._sub._mdc._tcp";
-  private static final String SERVICE_NAME = "_http._tcp";
+  private static final String SERVICE_NAME = "Test._org.smpte.st2071.device:device_v1.0._sub._mdc._tcp";
+  //private static final String SERVICE_NAME = "_http._tcp";
 
 
   private static final Logger LOG = LoggerFactory.getLogger(ApiUsageExamplesTest.class);
@@ -199,7 +199,7 @@ public class ApiUsageExamplesTest {
       fail("Services Registration Failed!");
     }
 
-    if (mDNSService.unregister(serviceName).toCompletableFuture().get(1, TimeUnit.MINUTES)) {
+    if (mDNSService.unregister(serviceName).toCompletableFuture().get()) {
       System.out.println("Services Successfully Unregistered: \n\t" + serviceName);
     } else {
       System.err.println("Services Unregistration Failed!");

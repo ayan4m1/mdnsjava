@@ -11,10 +11,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
@@ -146,12 +149,14 @@ public class Lookup extends MulticastDNSLookupBase {
   }
 
   public CompletionStage<Set<Domain>> lookupDomains() throws IOException {
-    final Set<Domain> domains = new HashSet<>();
-    final List<Exception> exceptions = new LinkedList<>();
-    
-    CompletionStage<Set<Domain>> domainsCompletionStage = CompletableFuture.completedFuture(domains);
+    final Set<Domain> existingDomains = searchPath.stream().map(Domain::new).collect(Collectors.toSet());
+
+    CompletionStage<Set<Domain>> domainsCompletionStage;
 
     if (CollectionUtils.isNotEmpty(queries)) {
+      final Set<Domain> domains = new HashSet<>();
+      final List<Exception> exceptions = new LinkedList<>();
+
       List<Object> ids = lookupRecordsAsync(new RecordListener() {
         public void handleException(final Object id, final Exception e) {
           exceptions.add(e);
@@ -188,12 +193,25 @@ public class Lookup extends MulticastDNSLookupBase {
         } else {
           return CollectionUtils.isEmpty(domains) ? Optional.empty() : Optional.of(domains);
         }
-      }, Duration.ofMillis(10), POLL_EXECUTOR);
+      }, Duration.ofMillis(10), POLL_EXECUTOR)
+          .exceptionally(throwable -> {
+            if (throwable instanceof CancellationException) {
+              LOG.warn("Record lookup is timing out at {} milliseconds.", Querier.DEFAULT_RESPONSE_WAIT_TIME);
+            } else {
+              LOG.error("Unknown error.", throwable);
+            }
+            return new HashSet<>();
+          });
+
+      POLL_EXECUTOR.schedule(() -> domainsCompletionStage.toCompletableFuture().complete(new HashSet<>()),
+          Querier.DEFAULT_RESPONSE_WAIT_TIME, TimeUnit.MILLISECONDS);
+
+    } else {
+      return CompletableFuture.completedFuture(existingDomains);
     }
 
-
     return domainsCompletionStage.thenApply(completedDomains -> {
-      completedDomains.addAll(searchPath.stream().map(Domain::new).collect(Collectors.toSet()));
+      completedDomains.addAll(existingDomains);
       return completedDomains;
     });
   }
@@ -209,13 +227,24 @@ public class Lookup extends MulticastDNSLookupBase {
 
       public void receiveMessage(final Object id, final Message m) {
         messages.add(m);
-        LOG.info("hi");
       }
     });
 
-    CompletionStage<List<Message>> messagesCompletionStage = CompletableFutures.poll(
-        () -> CollectionUtils.isEmpty(messages) ? Optional.empty() : Optional.of(messages),
-        Duration.ofMillis(10), POLL_EXECUTOR);
+
+    // TODO (chawley) - Make sure we have a way to timeout without failing.
+    CompletionStage<List<Message>> messagesCompletionStage = CompletableFutures
+        .poll(() -> CollectionUtils.isEmpty(messages) ? Optional.empty() : Optional.of(messages), Duration.ofMillis(10), POLL_EXECUTOR)
+        .exceptionally(throwable -> {
+          if (throwable instanceof CancellationException) {
+            LOG.warn("Record lookup is timing out at {} milliseconds.", Querier.DEFAULT_RESPONSE_WAIT_TIME);
+          } else {
+            LOG.error("Unknown error.", throwable);
+          }
+            return new ArrayList<>();
+        });
+
+    POLL_EXECUTOR.schedule(() -> messagesCompletionStage.toCompletableFuture().complete(new ArrayList<>()),
+        Querier.DEFAULT_RESPONSE_WAIT_TIME, TimeUnit.MILLISECONDS);
 
     return messagesCompletionStage.thenApply(messagesCompleted -> {
       List<Record> records = new ArrayList();
