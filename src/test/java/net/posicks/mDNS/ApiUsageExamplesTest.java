@@ -5,12 +5,11 @@ import static org.junit.Assert.fail;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
 import net.posick.mDNS.Lookup;
-import net.posick.mDNS.Lookup.Domain;
+import net.posick.mDNS.model.Domain;
 import net.posick.mDNS.Lookup.RecordListener;
 import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
@@ -54,7 +53,7 @@ public class ApiUsageExamplesTest {
         Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
 
     Set<Domain> domains = lookup.lookupDomains().toCompletableFuture().get();
-    for (Lookup.Domain domain : domains) {
+    for (Domain domain : domains) {
       System.out.println(domain);
     }
     lookup.close();

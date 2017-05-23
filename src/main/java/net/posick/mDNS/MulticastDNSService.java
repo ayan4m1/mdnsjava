@@ -19,7 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import net.posick.mDNS.Lookup.Domain;
+import net.posick.mDNS.model.Domain;
 import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
@@ -170,23 +170,24 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
         List<Record> records = new ArrayList<>();
         List<Record> additionalRecords = new ArrayList<>();
 
-        InetAddress[] addresses = service.getAddresses();
+        List<InetAddress> addresses = ListUtils.emptyIfNull(service.getAddresses());
 
-        if (addresses != null) {
-          for (int index = 0; index < addresses.length; index++) {
-            if (addresses[index] != null) {
-              if (addresses[index].getAddress().length == 4) {
-                additionalRecords.add(
-                    new ARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_A_TTL,
-                        addresses[index]));
-              } else {
-                additionalRecords.add(
-                    new AAAARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH, Constants.DEFAULT_A_TTL,
-                        addresses[index]));
-              }
+        for (InetAddress address : addresses) {
+          if (address != null) {
+            if (address.getAddress().length == 4) {
+              additionalRecords.add(
+                  new ARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH,
+                      Constants.DEFAULT_A_TTL,
+                      address));
+            } else {
+              additionalRecords.add(
+                  new AAAARecord(service.getHost(), DClass.IN + Constants.CACHE_FLUSH,
+                      Constants.DEFAULT_A_TTL,
+                      address));
             }
           }
         }
+
 
         records.add(new PTRRecord(typeName, DClass.IN, Constants.DEFAULT_SRV_TTL, shortSRVName));
         if (!fullTypeName.equals(typeName)) {

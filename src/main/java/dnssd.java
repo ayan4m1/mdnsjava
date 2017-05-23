@@ -12,7 +12,7 @@ import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
 import net.posick.mDNS.Lookup;
-import net.posick.mDNS.Lookup.Domain;
+import net.posick.mDNS.model.Domain;
 import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
 import net.posick.mDNS.ServiceName;
