@@ -16,7 +16,7 @@ public class Misc {
    * @param t The Throwable
    * @return The message and stack trace from the provided Throwable
    */
-  public static final String throwableToString(Throwable t) {
+  public static String throwableToString(Throwable t) {
     StringWriter sw = new StringWriter();
     PrintWriter pw = new PrintWriter(sw);
     t.printStackTrace(pw);
@@ -24,7 +24,7 @@ public class Misc {
   }
 
 
-  public static final String unescape(String string) {
+  public static String unescape(String string) {
     if (string == null) {
       return null;
     }

@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import net.posick.mDNS.MulticastDNSCache.CacheMonitor;
 import net.posick.mDNS.net.DatagramProcessor;
 import net.posick.mDNS.net.Packet;
@@ -22,10 +23,12 @@ import net.posick.mDNS.resolvers.Cacher;
 import net.posick.mDNS.resolvers.ListenerWrapper;
 import net.posick.mDNS.resolvers.MulticastDNSResponder;
 import net.posick.mDNS.utils.Executors;
+import net.posick.mDNS.utils.IpUtil;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.MessageWriter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xbill.DNS.Cache;
@@ -130,13 +133,11 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
     public void end() {
       try {
-        if (authRecords.size() > 0) {
+        if (CollectionUtils.isNotEmpty(authRecords)) {
           Message m = new Message();
           Header h = m.getHeader();
           h.setOpcode(Opcode.UPDATE);
-          for (Record authRecord : authRecords) {
-            m.addRecord(authRecord, Section.UPDATE);
-          }
+          authRecords.forEach(authRecord -> m.addRecord(authRecord, Section.UPDATE));
 
           if (mdnsVerbose || cacheVerbose) {
             LOG.info("CacheMonitor Broadcasting update for Authoritative Records: " + m);
@@ -150,9 +151,7 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
           Header h = m.getHeader();
           h.setOpcode(Opcode.QUERY);
           h.setFlag(Flags.QR);
-          for (Record nonauthRecord : nonauthRecords) {
-            m.addRecord(nonauthRecord, Section.UPDATE);
-          }
+          nonauthRecords.forEach(nonauthRecord -> m.addRecord(nonauthRecord, Section.UPDATE));
 
           if (mdnsVerbose || cacheVerbose) {
             LOG.info("CacheMonitor Locally Broadcasting Non-Authoritative Records:" + m);
@@ -183,13 +182,13 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       }
 
       List<Record> list = credibility >= Credibility.AUTH_AUTHORITY ? authRecords : nonauthRecords;
-
       List<Record> records = MulticastDNSUtils.extractRecords(rrs);
+
       if (CollectionUtils.isNotEmpty(records)) {
-        for (Record record : records) {
+        records.forEach(record -> {
           MulticastDNSUtils.setTLLForRecord(record, 0);
           list.add(record);
-        }
+        });
       }
     }
 
@@ -314,17 +313,10 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
       MessageWriter.writeMessageToWire(convertUpdateToQueryResponse(message), multicastProcessors, resolverListenerDispatcher, tsig, queryOPT);
     } else if (addKnownAnswers) {
       Message knownAnswer = cache.queryCache(message, Credibility.ANY);
-      for (Integer section : new Integer[]{Section.ANSWER,
-          Section.ADDITIONAL,
-          Section.AUTHORITY}) {
-        Record[] records = knownAnswer.getSectionArray(section);
-        if ((records != null) && (records.length > 0)) {
-          for (Record record : records) {
-            if (!message.findRecord(record)) {
-              message.addRecord(record, section);
-            }
-          }
-        }
+      for (Integer section : new Integer[]{Section.ANSWER, Section.ADDITIONAL, Section.AUTHORITY}) {
+        Record[] records = (Record[]) ArrayUtils.nullToEmpty(knownAnswer.getSectionArray(section));
+        Stream.of(records).filter(record -> !message.findRecord(record))
+            .forEach(record -> message.addRecord(record, section));
       }
 
       MessageWriter.writeMessageToWire(message, multicastProcessors, resolverListenerDispatcher, tsig, queryOPT);
@@ -351,23 +343,11 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     return cache;
   }
 
-
   /**
    * {@inheritDoc}
    */
   public List<Name> getMulticastDomains() {
-    boolean ipv4 = isIPv4();
-    boolean ipv6 = isIPv6();
-
-    if (ipv4 && ipv6) {
-      return Constants.ALL_MULTICAST_DNS_DOMAINS;
-    } else if (ipv4) {
-      return Constants.IPv4_MULTICAST_DOMAINS;
-    } else if (ipv6) {
-      return Constants.IPv6_MULTICAST_DOMAINS;
-    } else {
-      return new ArrayList<>();
-    }
+    return IpUtil.getMulticastDomains(isIPv4(), isIPv6());
   }
 
   /**

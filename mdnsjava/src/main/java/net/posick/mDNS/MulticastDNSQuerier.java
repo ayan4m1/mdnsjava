@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import net.posick.mDNS.utils.IpUtil;
 import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
@@ -48,7 +49,6 @@ public class MulticastDNSQuerier implements Querier {
   private static final Logger LOG = LoggerFactory.getLogger(MulticastDNSQuerier.class);
 
   protected static class Resolution implements ResolverListener {
-
     private MulticastDNSQuerier querier = null;
     private Message query = null;
     private ResolverListener listener = null;
@@ -58,8 +58,7 @@ public class MulticastDNSQuerier implements Querier {
     private boolean mdnsVerbose = false;
 
 
-    Resolution(final MulticastDNSQuerier querier, final Message query,
-        final ResolverListener listener) {
+    Resolution(final MulticastDNSQuerier querier, final Message query, final ResolverListener listener) {
       this.querier = querier;
       this.query = query;
       this.listener = listener;
@@ -135,7 +134,7 @@ public class MulticastDNSQuerier implements Querier {
     }
 
     public void handleException(final Object id, final Exception exception) {
-      if ((requestIDs.size() != 0) && (!requestIDs.contains(id) || (this != id) || !equals(id))) {
+      if (requestIDs.size() != 0 && (!requestIDs.contains(id) || this != id || !equals(id))) {
         LOG.trace("!!!!! Exception Received for ID - {}.", id);
         synchronized (responses) {
           responses.add(new Response(id, exception));
@@ -164,7 +163,7 @@ public class MulticastDNSQuerier implements Querier {
     }
 
     public void receiveMessage(final Object id, final Message message) {
-      if ((requestIDs.size() == 0) || requestIDs.contains(id) || (this == id) || equals(id)
+      if (requestIDs.size() == 0 || requestIDs.contains(id) || this == id || equals(id)
           || MulticastDNSUtils.answersAny(query, message)) {
         LOG.trace("!!!! Message Received - " + id + " - " + query.getQuestion());
         synchronized (responses) {
@@ -177,14 +176,14 @@ public class MulticastDNSQuerier implements Querier {
         }
       } else if (mdnsVerbose) {
 
-        String msg = "!!!!! Message Disgarded ";
+        StringBuilder msgBuilder = new StringBuilder("!!!!! Message Disgarded ");
         if ((requestIDs.size() != 0) && (!requestIDs.contains(id) || (this != id) || !equals(id))) {
-          msg += "[Request ID does not match Response ID] ";
+          msgBuilder.append("[Request ID does not match Response ID] ");
         }
         if (!MulticastDNSUtils.answersAny(query, message)) {
-          msg += "[Response does not answer Query]";
+          msgBuilder.append("[Response does not answer Query]");
         }
-        LOG.trace(msg + " - " + message);
+        LOG.trace(msgBuilder.append(" - ").append(message).toString());
       }
     }
 
@@ -248,20 +247,17 @@ public class MulticastDNSQuerier implements Querier {
     }
   }
 
-  protected ListenerProcessor<ResolverListener> resolverListenerProcessor = new ListenerProcessor<>(
+  private ListenerProcessor<ResolverListener> resolverListenerProcessor = new ListenerProcessor<>(
       ResolverListener.class);
 
-  protected ResolverListener resolverListenerDispatcher = resolverListenerProcessor.getDispatcher();
+  private ResolverListener resolverListenerDispatcher = resolverListenerProcessor.getDispatcher();
 
-  protected boolean ipv4 = false;
+  private boolean ipv4 = false;
+  private boolean ipv6 = false;
+  private List<Querier> multicastResponders;
+  private List<Resolver> unicastResolvers;
 
-  protected boolean ipv6 = false;
-
-  protected List<Querier> multicastResponders;
-
-  protected List<Resolver> unicastResolvers;
-
-  protected ResolverListener resolverDispatch = new ResolverListener() {
+  private ResolverListener resolverDispatch = new ResolverListener() {
     public void handleException(final Object id, final Exception e) {
       resolverListenerDispatcher.handleException(id, e);
     }
@@ -310,11 +306,10 @@ public class MulticastDNSQuerier implements Querier {
       throws IOException {
     boolean mdnsVerbose = Options.check("mdns_verbose");
 
-    if (CollectionUtils.isEmpty(unicastResolvers)) {
-      this.unicastResolvers = Lists.newArrayList(new ExtendedResolver());
-    } else {
-      this.unicastResolvers = unicastResolvers;
-    }
+
+    this.unicastResolvers = CollectionUtils.isEmpty(unicastResolvers)
+        ? Lists.newArrayList(new ExtendedResolver())
+        : unicastResolvers;
 
     Querier ipv4Responder = null;
     Querier ipv6Responder = null;
@@ -395,7 +390,7 @@ public class MulticastDNSQuerier implements Querier {
       });
     }
 
-    if (!success && (ex != null)) {
+    if (!success && ex != null) {
       throw ex;
     }
   }
@@ -408,17 +403,8 @@ public class MulticastDNSQuerier implements Querier {
    * {@inheritDoc}
    */
   public List<Name> getMulticastDomains() {
-    if (ipv4 && ipv6) {
-      return Constants.ALL_MULTICAST_DNS_DOMAINS;
-    } else if (ipv4) {
-      return Constants.IPv4_MULTICAST_DOMAINS;
-    } else if (ipv6) {
-      return Constants.IPv6_MULTICAST_DOMAINS;
-    } else {
-      return new ArrayList<>();
-    }
+    return IpUtil.getMulticastDomains(ipv4, ipv6);
   }
-
 
   public List<Resolver> getUnicastResolvers() {
     return unicastResolvers;

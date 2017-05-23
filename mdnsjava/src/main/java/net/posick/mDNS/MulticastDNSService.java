@@ -25,6 +25,7 @@ import net.posick.mDNS.utils.ListenerProcessor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xbill.DNS.AAAARecord;
@@ -382,8 +383,8 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       if (filteredRecords.size() > 0) {
         listenerProcessor.getDispatcher().receiveMessage(id, message);
 
-        Map<Name, ServiceInstance> foundServices = new HashMap<Name, ServiceInstance>();
-        Map<Name, ServiceInstance> removedServices = new HashMap<Name, ServiceInstance>();
+        Map<Name, ServiceInstance> foundServices = new HashMap<>();
+        Map<Name, ServiceInstance> removedServices = new HashMap<>();
 
         for (Record record : filteredRecords) {
           try {
@@ -396,7 +397,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
                 if (ptr.getTTL() > 0) {
                   ServiceInstance[] instances = extractServiceInstances(querier
                       .send(Message.newQuery(Record.newRecord(ptr.getTarget(), Type.ANY, dclass))));
-                  if (instances.length > 0) {
+                  if (ArrayUtils.getLength(instances) > 0) {
                     synchronized (services) {
                       for (int i = 0; i < instances.length; i++) {
                         if (!services.containsKey(instances[i].getName())) {

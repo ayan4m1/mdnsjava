@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.xbill.DNS.Name;
@@ -116,9 +118,8 @@ public class ServiceInstance implements Serializable {
     }
   }
 
-  public InetAddress[] getAddresses() {
-    return (addresses == null) || (addresses.size() == 0) ? null
-        : addresses.toArray(new InetAddress[addresses.size()]);
+  public List<InetAddress> getAddresses() {
+    return addresses;
   }
 
   public Name getHost() {
@@ -134,9 +135,8 @@ public class ServiceInstance implements Serializable {
     return niceText;
   }
 
-  public Name[] getPointers() {
-    return (pointers == null) || (pointers.size() == 0) ? null
-        : pointers.toArray(new Name[pointers.size()]);
+  public List<Name> getPointers() {
+    return pointers;
   }
 
   public int getPort() {
@@ -217,7 +217,7 @@ public class ServiceInstance implements Serializable {
 
     if (host != null) {
       builder.append(" can be reached at \"").append(host).append("\" ")
-          .append(Arrays.toString(getAddresses()));
+          .append(ListUtils.emptyIfNull(getAddresses()).toString());
     }
 
     if (port > 0) {
@@ -225,7 +225,7 @@ public class ServiceInstance implements Serializable {
     }
 
     StringBuilder textBuilder = new StringBuilder();
-    if ((textAttributes != null) && (textAttributes.size() > 0)) {
+    if (MapUtils.isNotEmpty(textAttributes)) {
       for (Object o : textAttributes.entrySet()) {
         Map.Entry entry = (Map.Entry) o;
         if (textBuilder.length() == 0) {

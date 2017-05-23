@@ -17,8 +17,8 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import net.posick.mDNS.model.Domain;
 import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,55 +40,6 @@ public class Lookup extends MulticastDNSLookupBase {
   private static final Logger LOG = LoggerFactory.getLogger(Lookup.class);
 
   private static final ScheduledExecutorService POLL_EXECUTOR = Executors.newScheduledThreadPool(10);
-
-  public static class Domain {
-    private final Name name;
-    private final boolean isDefault;
-    private final boolean isLegacy;
-
-    protected Domain(final Name name) {
-      this.name = name;
-
-      byte[] label = name.getLabel(0);
-      isDefault = (char)label[0] == 'd';
-      isLegacy = (char)label[0] == 'l';
-    }
-
-    public Name getName() {
-      return name;
-    }
-
-    public boolean isDefault() {
-      return isDefault;
-    }
-
-    public boolean isLegacy() {
-      return isLegacy;
-    }
-
-    @Override
-    public int hashCode() {
-      return name.hashCode();
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-      if (obj == this) {
-        return true;
-      } else if (name == obj) {
-        return true;
-      } else if (obj instanceof Domain) {
-        return name.equals(((Domain) obj).name);
-      }
-
-      return false;
-    }
-
-    @Override
-    public String toString() {
-      return name + (isDefault ? "  [default]" : "") + (isLegacy ? "  [legacy]" : "");
-    }
-  }
 
   public interface RecordListener {
 
@@ -180,12 +131,6 @@ public class Lookup extends MulticastDNSLookupBase {
           }
         }
       });
-
-      try {
-        Thread.sleep(1000 * 10);
-      } catch (Exception e) {
-
-      }
 
       domainsCompletionStage = CompletableFutures.poll(() -> {
         if (CollectionUtils.isNotEmpty(exceptions)) {

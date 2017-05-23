@@ -192,21 +192,21 @@ public abstract class MulticastDNSLookupBase implements Closeable {
 
     int type = -1;
     int dclass = -1;
-    List list = new ArrayList();
+    List<Name> nameList = new ArrayList();
     List<Record> records = MulticastDNSUtils.extractRecords(message, Section.QUESTION);
     for (Record r : records) {
-      if (!list.contains(r)) {
-        list.add(r.getName());
+      if (!nameList.contains(r.getName())) {
+        nameList.add(r.getName());
       }
 
       type = type < 0 ? r.getType() : Type.ANY;
       dclass = dclass < 0 ? r.getDClass() : DClass.ANY;
     }
 
-    if (list.size() > 0) {
+    if (nameList.size() > 0) {
       this.type = type;
       this.dclass = dclass;
-      names = new ArrayList<>(list);
+      names = new ArrayList<>(nameList);
     }
   }
 
@@ -281,7 +281,8 @@ public abstract class MulticastDNSLookupBase implements Closeable {
   }
 
   protected void buildQueries() {
-    if ((this.names != null) && (searchPath != null)) {
+
+    if (CollectionUtils.isNotEmpty(names) && CollectionUtils.isNotEmpty(searchPath)) {
       List<Name> searchNames = new ArrayList();
       List<Message> newQueries = new ArrayList();
       Message multicastQuery = null;

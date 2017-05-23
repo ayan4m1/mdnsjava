@@ -1,12 +1,10 @@
 package net.posick.mDNS;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
@@ -16,11 +14,8 @@ import org.xbill.DNS.Name;
 import org.xbill.DNS.TextParseException;
 
 public class ServiceName extends Name {
-
   private static final long serialVersionUID = 201305151047L;
-
   private static final byte[][] PROTOCOLS;
-
   private static final byte[] SUB_SERVICE_INDICATOR = {4, '_', 's', 'u', 'b'};
 
   static {
@@ -195,7 +190,7 @@ public class ServiceName extends Name {
   }
 
 
-  private static final boolean arrayEquals(byte[] test, byte[] src, short offset) {
+  private static boolean arrayEquals(byte[] test, byte[] src, short offset) {
     short length = src[offset];
     if (length == test[0] && src.length > offset + length) {
       for (int index = 1; index < length; index++) {
