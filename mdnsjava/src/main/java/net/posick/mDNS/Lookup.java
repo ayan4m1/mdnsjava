@@ -1,17 +1,27 @@
 package net.posick.mDNS;
 
+import com.spotify.futures.CompletableFutures;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import net.posick.mDNS.utils.Wait;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.MulticastDNSUtils;
@@ -26,6 +36,10 @@ import org.xbill.DNS.Type;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class Lookup extends MulticastDNSLookupBase {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Lookup.class);
+
+  private static final ScheduledExecutorService POLL_EXECUTOR = Executors.newScheduledThreadPool(10);
 
   public static class Domain {
     private final Name name;
@@ -134,12 +148,16 @@ public class Lookup extends MulticastDNSLookupBase {
   public void close() throws IOException {
   }
 
-  public Set<Domain> lookupDomains() throws IOException {
-    final Set<Domain> domains = Collections.synchronizedSet(new HashSet());
-    final List<Exception> exceptions = Collections.synchronizedList(new LinkedList());
+  public CompletionStage<Set<Domain>> lookupDomains() throws IOException {
+    final Set<Domain> existingDomains = searchPath.stream().map(Domain::new).collect(Collectors.toSet());
+
+    CompletionStage<Set<Domain>> domainsCompletionStage;
 
     if (CollectionUtils.isNotEmpty(queries)) {
-      lookupRecordsAsync(new RecordListener() {
+      final Set<Domain> domains = new HashSet<>();
+      final List<Exception> exceptions = new LinkedList<>();
+
+      List<Object> ids = lookupRecordsAsync(new RecordListener() {
         public void handleException(final Object id, final Exception e) {
           exceptions.add(e);
         }
@@ -156,28 +174,53 @@ public class Lookup extends MulticastDNSLookupBase {
               try {
                 domains.add(new Domain(new Name(value)));
               } catch (TextParseException e) {
-                e.printStackTrace(System.err);
+                LOG.error("Error parsing domain.", e);
               }
             }
           }
         }
       });
 
-      Wait.forResponse(domains);
+      try {
+        Thread.sleep(1000 * 10);
+      } catch (Exception e) {
+
+      }
+
+      domainsCompletionStage = CompletableFutures.poll(() -> {
+        if (CollectionUtils.isNotEmpty(exceptions)) {
+          return Optional.of(domains);
+        } else {
+          return CollectionUtils.isEmpty(domains) ? Optional.empty() : Optional.of(domains);
+        }
+      }, Duration.ofMillis(10), POLL_EXECUTOR)
+          .exceptionally(throwable -> {
+            if (throwable instanceof CancellationException) {
+              LOG.warn("Record lookup is timing out at {} milliseconds.", Querier.DEFAULT_RESPONSE_WAIT_TIME);
+            } else {
+              LOG.error("Unknown error.", throwable);
+            }
+            return new HashSet<>();
+          });
+
+      POLL_EXECUTOR.schedule(() -> domainsCompletionStage.toCompletableFuture().complete(new HashSet<>()),
+          Querier.DEFAULT_RESPONSE_WAIT_TIME, TimeUnit.MILLISECONDS);
+
+    } else {
+      return CompletableFuture.completedFuture(existingDomains);
     }
 
-    for (Name name : searchPath) {
-      domains.add(new Domain(name));
-    }
-
-    return domains;
+    return domainsCompletionStage.thenApply(completedDomains -> {
+      completedDomains.addAll(existingDomains);
+      return completedDomains;
+    });
   }
 
-  public List<Record> lookupRecords() throws IOException {
-    final Queue<Message> messages = new ConcurrentLinkedQueue();
-    final Queue<Exception> exceptions = new ConcurrentLinkedQueue();
+  public CompletionStage<List<Record>> lookupRecords() throws IOException {
+    final List<Message> messages = new ArrayList<>();
+    final List<Exception> exceptions = new ArrayList<>();
 
-    lookupRecordsAsync(new ResolverListener() {
+    List<Object> ids = lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         exceptions.add(e);
       }
@@ -187,26 +230,43 @@ public class Lookup extends MulticastDNSLookupBase {
       }
     });
 
-    Wait.forResponse(messages);
 
-    List<Record> records = new ArrayList();
+    // TODO (chawley) - Make sure we have a way to timeout without failing.
+    CompletionStage<List<Message>> messagesCompletionStage = CompletableFutures
+        .poll(() -> CollectionUtils.isEmpty(messages) ? Optional.empty() : Optional.of(messages), Duration.ofMillis(10), POLL_EXECUTOR)
+        .exceptionally(throwable -> {
+          if (throwable instanceof CancellationException) {
+            LOG.warn("Record lookup is timing out at {} milliseconds.", Querier.DEFAULT_RESPONSE_WAIT_TIME);
+          } else {
+            LOG.error("Unknown error.", throwable);
+          }
+            return new ArrayList<>();
+        });
 
-    for (Message m : messages) {
-      switch (m.getRcode()) {
-        case Rcode.NOERROR:
-          records.addAll(MulticastDNSUtils
-              .extractRecords(m, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL));
-          break;
-        case Rcode.NXDOMAIN:
-          break;
+    POLL_EXECUTOR.schedule(() -> messagesCompletionStage.toCompletableFuture().complete(new ArrayList<>()),
+        Querier.DEFAULT_RESPONSE_WAIT_TIME, TimeUnit.MILLISECONDS);
+
+    return messagesCompletionStage.thenApply(messagesCompleted -> {
+      List<Record> records = new ArrayList();
+
+      for (Message m : messagesCompleted) {
+        switch (m.getRcode()) {
+          case Rcode.NOERROR:
+            records.addAll(MulticastDNSUtils
+                .extractRecords(m, Section.ANSWER, Section.AUTHORITY, Section.ADDITIONAL));
+            break;
+          case Rcode.NXDOMAIN:
+            break;
+        }
       }
-    }
 
-    return records;
+      return records;
+    });
+
   }
 
-  public void lookupRecordsAsync(final RecordListener listener) throws IOException {
-    lookupRecordsAsync(new ResolverListener() {
+  public List<Object> lookupRecordsAsync(final RecordListener listener) throws IOException {
+    return lookupRecordsAsync(new ResolverListener() {
       public void handleException(final Object id, final Exception e) {
         listener.handleException(id, e);
       }
@@ -221,65 +281,62 @@ public class Lookup extends MulticastDNSLookupBase {
     });
   }
 
-  public void lookupRecordsAsync(final ResolverListener listener) throws IOException {
-    for (Message query : queries) {
-      getQuerier().sendAsync(query, listener);
-    }
+  public List<Object> lookupRecordsAsync(final ResolverListener listener) throws IOException {
+    return queries.stream().map(query -> getQuerier().sendAsync(query, listener))
+        .collect(Collectors.toList());
   }
 
-  public List<ServiceInstance> lookupServices() throws IOException {
-    final List<ServiceInstance> results = new ArrayList();
-    results.addAll(Arrays.asList(extractServiceInstances(lookupRecords())));
-    return results;
+  public CompletionStage<List<ServiceInstance>> lookupServices() throws IOException {
+    return lookupRecords().thenApply(records ->  Arrays.asList(extractServiceInstances(records)));
   }
 
-  public static List<Record> lookupRecords(Name name) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(Name name) throws IOException {
     return lookupRecords(Collections.singletonList(name), Type.ANY, DClass.ANY);
   }
 
-  public static List<Record> lookupRecords(List<Name> names) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(List<Name> names) throws IOException {
     return lookupRecords(names, Type.ANY, DClass.ANY);
   }
 
-  public static List<Record> lookupRecords(Name name, int type) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(Name name, int type) throws IOException {
     return lookupRecords(Collections.singletonList(name), type, DClass.ANY);
   }
 
-  public static List<Record> lookupRecords(List<Name> names, int type) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(List<Name> names, int type) throws IOException {
     return lookupRecords(names, type, DClass.ANY);
   }
 
-  public static List<Record> lookupRecords(Name name, int type, int dclass) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(Name name, int type, int dclass) throws IOException {
     return lookupRecords(Collections.singletonList(name), type, dclass);
   }
 
-  public static List<Record> lookupRecords(List<Name> names, int type, int dclass) throws IOException {
+  public static CompletionStage<List<Record>> lookupRecords(List<Name> names, int type, int dclass) throws IOException {
     try (Lookup lookup = new Lookup(names, type, dclass)) {
       return lookup.lookupRecords();
     }
   }
 
-  public static List<ServiceInstance> lookupServices(Name name) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(Name name) throws IOException {
     return lookupServices(Collections.singletonList(name), Type.ANY, DClass.ANY);
   }
 
-  public static List<ServiceInstance> lookupServices(List<Name> names) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(List<Name> names) throws IOException {
     return lookupServices(names, Type.ANY, DClass.ANY);
   }
 
-  public static List<ServiceInstance> lookupServices(Name name, int type) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(Name name, int type) throws IOException {
     return lookupServices(Collections.singletonList(name), type, DClass.ANY);
   }
 
-  public static List<ServiceInstance> lookupServices(List<Name> names, int type) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(List<Name> names, int type) throws IOException {
     return lookupServices(names, type, DClass.ANY);
   }
 
-  public static List<ServiceInstance> lookupServices(Name name, int type, int dclass) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(Name name, int type, int dclass) throws IOException {
     return lookupServices(Collections.singletonList(name), type, dclass);
   }
 
-  public static List<ServiceInstance> lookupServices(List<Name> names, int type, int dclass) throws IOException {
+  public static CompletionStage<List<ServiceInstance>> lookupServices(List<Name> names, int type, int dclass) throws IOException {
     try (Lookup lookup = new Lookup(names, type, dclass)) {
       return lookup.lookupServices();
     }

@@ -8,13 +8,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import net.posick.mDNS.Lookup.Domain;
 import net.posick.mDNS.ServiceRegistrationException.REASON;
 import net.posick.mDNS.utils.ListenerProcessor;
@@ -273,21 +277,23 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
           }
         }
 
-        // Original Lookup lookup = new Lookup(new Name[]{serviceName}, Type.ANY);
         Lookup lookup = new Lookup(Collections.singletonList(shortSRVName), Type.ANY);
         try {
-          instances = lookup.lookupServices();
+          instances = lookup.lookupServices().toCompletableFuture().get(1, TimeUnit.MINUTES);
 
           if (CollectionUtils.isNotEmpty(instances)) {
             LOG.trace("Register - Response received.");
 
             if (instances.size() > 1) {
-              LOG.warn("Register - Warning: More than one service with the name {} was registered.", shortSRVName);
+              LOG.warn("Register - Warning: More than one service with the name {} was registered.",
+                  shortSRVName);
               throw new IOException("Too many services returned! + Instances: " + instances);
             }
 
             return instances.get(0);
           }
+        } catch (Exception e) {
+          LOG.error("Error...", e);
         } finally {
           IOUtils.closeQuietly(lookup);
         }
@@ -503,7 +509,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     protected void close() throws IOException {
     }
 
-    protected boolean unregister() throws IOException {
+    protected CompletionStage<Boolean> unregister() throws IOException {
     /*
      * Steps to Registering a Service.
      *
@@ -552,14 +558,8 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
       }
 
       try (Lookup lookup = new Lookup(Arrays.asList(typeName, fullTypeName), Type.PTR, DClass.ANY)) {
-        boolean found = false;
-        List<Record> results = ListUtils.emptyIfNull(lookup.lookupRecords());
-        for (Record record : results) {
-          if (shortSRVName.equals(((PTRRecord) record).getTarget())) {
-            found = true;
-          }
-        }
-        return !found;
+        return lookup.lookupRecords().thenApply(results ->
+            results.stream().noneMatch(result -> shortSRVName.equals(((PTRRecord) result).getTarget())));
       }
     }
   }
@@ -574,48 +574,65 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     discoveryOperations.forEach(IOUtils::closeQuietly);
   }
 
-  public Set<Domain> getBrowseDomains(final Set<Name> searchPath) {
+  public CompletionStage<Set<Domain>> getBrowseDomains(final Set<Name> searchPath) {
     Set<Domain> results = new LinkedHashSet<>();
     for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    results.addAll(getDomains(Arrays.asList(Constants.DEFAULT_BROWSE_DOMAIN_NAME, Constants.BROWSE_DOMAIN_NAME,
-        Constants.LEGACY_BROWSE_DOMAIN_NAME), new ArrayList<>(searchPath)));
-    return results;
+
+    return getDomains(Arrays.asList(Constants.DEFAULT_BROWSE_DOMAIN_NAME, Constants.BROWSE_DOMAIN_NAME,
+        Constants.LEGACY_BROWSE_DOMAIN_NAME), new ArrayList<>(searchPath))
+        .thenApply(domains -> {
+          results.addAll(domains);
+          return results;
+        });
   }
 
-  public Set<Domain> getDefaultBrowseDomains(final Set<Name> searchPath) {
+  public CompletionStage<Set<Domain>> getDefaultBrowseDomains(final Set<Name> searchPath) {
     Set<Domain> results = new LinkedHashSet<>();
     for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
     searchPath.addAll(Constants.ALL_MULTICAST_DNS_DOMAINS);
-    results.addAll(getDomains(Collections.singletonList(Constants.DEFAULT_BROWSE_DOMAIN_NAME),
-        new ArrayList<>(searchPath)));
-    return results;
+
+    return getDomains(Collections.singletonList(Constants.DEFAULT_BROWSE_DOMAIN_NAME),
+        new ArrayList<>(searchPath))
+        .thenApply(domains -> {
+          results.addAll(domains);
+          return results;
+        });
   }
 
 
-  public Set<Domain> getDefaultRegistrationDomains(final Set<Name> searchPath) {
+  public CompletionStage<Set<Domain>> getDefaultRegistrationDomains(final Set<Name> searchPath) {
     Set<Domain> results = new LinkedHashSet<>();
     for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
     searchPath.addAll(Constants.ALL_MULTICAST_DNS_DOMAINS);
-    results.addAll(getDomains(Collections.singletonList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME),
-        new ArrayList<>(searchPath)));
-    return results;
+
+
+    return getDomains(Collections.singletonList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME),
+        new ArrayList<>(searchPath))
+        .thenApply(domains -> {
+          results.addAll(domains);
+          return results;
+        });
   }
 
 
-  public Set<Domain> getRegistrationDomains(final Set<Name> searchPath) {
+  public CompletionStage<Set<Domain>> getRegistrationDomains(final Set<Name> searchPath) {
     Set<Domain> results = new LinkedHashSet<>();
     for (Name name : Constants.ALL_MULTICAST_DNS_DOMAINS) {
       results.add(new Domain(name));
     }
-    results.addAll(getDomains(Arrays.asList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
-        Constants.REGISTRATION_DOMAIN_NAME), new ArrayList<>(searchPath)));
-    return results;
+
+    return getDomains(Arrays.asList(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
+        Constants.REGISTRATION_DOMAIN_NAME), new ArrayList<>(searchPath))
+        .thenApply(domains -> {
+          results.addAll(domains);
+          return results;
+        });
   }
 
   public ServiceInstance register(final ServiceInstance service) throws IOException {
@@ -677,7 +694,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     return false;
   }
 
-  public boolean unregister(final ServiceInstance service) throws IOException {
+  public CompletionStage<Boolean> unregister(final ServiceInstance service) throws IOException {
     Unregister unregister = new Unregister(service);
     try {
       return unregister.unregister();
@@ -686,7 +703,7 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-  public boolean unregister(final ServiceName name) throws IOException {
+  public CompletionStage<Boolean> unregister(final ServiceName name) throws IOException {
     Unregister unregister = new Unregister(name);
     try {
       return unregister.unregister();
@@ -695,40 +712,62 @@ public class MulticastDNSService extends MulticastDNSLookupBase {
     }
   }
 
-  protected Set<Domain> getDomains(final List<String> names, final List<Name> path) {
-    Set<Domain> results = new LinkedHashSet<>();
-    Stack<List<Name>> stack = new Stack<>();
-    stack.push(path);
+  private CompletionStage<Set<Domain>> getDomainsHelper(Set<Domain> currentDomains, List<String> names, final List<Name> newSearchPath) throws IOException {
+    Lookup lookup = new Lookup(names.toArray(new String[names.size()]));
+    lookup.setSearchPath(newSearchPath);
+    lookup.setQuerier(querier);
 
-    while (!stack.isEmpty()) {
-      List<Name> searchPath = stack.pop();
+    CompletionStage<Set<Domain>> domainsFuture = lookup.lookupDomains();
+    return domainsFuture.thenCompose(domains -> {
+      if (CollectionUtils.isNotEmpty(domains)) {
 
-      Lookup lookup = null;
-      try {
-        lookup = new Lookup(names.toArray(new String[names.size()]));
-        lookup.setSearchPath(searchPath);
-        lookup.setQuerier(querier);
-        Set<Domain> domains = lookup.lookupDomains();
-        if (CollectionUtils.isNotEmpty(domains)) {
-          List<Name> newDomains = new ArrayList<>();
-          for (Domain domain : domains) {
-            if (!results.contains(domain)) {
-              newDomains.add(domain.getName());
-              results.add(domain);
-            }
-          }
-          if (newDomains.size() > 0) {
-            stack.push(newDomains);
+        List<Name> newDomains = new ArrayList<>();
+        for (Domain domain : domains) {
+          if (!currentDomains.contains(domain)) {
+            newDomains.add(domain.getName());
+            currentDomains.add(domain);
           }
         }
-      } catch (IOException e) {
-        LOG.error("Error getting domains", e);
-      } finally {
-        IOUtils.closeQuietly(lookup);
+        try {
+          return getDomainsHelper(currentDomains, names, newDomains);
+        } catch (IOException e) {
+          return CompletableFuture.completedFuture(currentDomains);
+        }
       }
-    }
+      return CompletableFuture.completedFuture(currentDomains);
+    });
 
-    return results;
+  }
+
+  protected CompletionStage<Set<Domain>> getDomains(final List<String> names, final List<Name> path)  {
+    Lookup lookup = null;
+    try {
+      lookup = new Lookup(names.toArray(new String[names.size()]));
+      lookup.setSearchPath(path);
+      lookup.setQuerier(querier);
+      CompletionStage<Set<Domain>> domainsFuture = lookup
+          .lookupDomains()
+          .thenCompose(domains -> {
+            if (CollectionUtils.isNotEmpty(domains)) {
+
+              List<Name> newDomains = domains.stream().map(Domain::getName)
+                  .collect(Collectors.toList());
+              try {
+                return getDomainsHelper(domains, names, newDomains);
+              } catch (IOException e) {
+                return CompletableFuture.completedFuture(domains);
+              }
+            }
+            return CompletableFuture.completedFuture(domains);
+          });
+
+      return domainsFuture;
+    } catch (IOException e) {
+      LOG.error("Error getting domains", e);
+      return CompletableFuture.completedFuture(new HashSet<>());
+    } finally {
+      IOUtils.closeQuietly(lookup);
+    }
   }
 
 

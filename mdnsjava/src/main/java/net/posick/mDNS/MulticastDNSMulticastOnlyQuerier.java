@@ -1,14 +1,18 @@
 package net.posick.mDNS;
 
+import com.spotify.futures.CompletableFutures;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.MulticastDNSCache.CacheMonitor;
 import net.posick.mDNS.net.DatagramProcessor;
@@ -20,7 +24,6 @@ import net.posick.mDNS.resolvers.MulticastDNSResponder;
 import net.posick.mDNS.utils.Executors;
 import net.posick.mDNS.utils.ListenerProcessor;
 import net.posick.mDNS.utils.MessageWriter;
-import net.posick.mDNS.utils.Wait;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -82,11 +85,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
 
   private final CacheMonitor cacheMonitor = new CacheMonitor() {
     private final List<Record> authRecords = new ArrayList<>();
-
     private final List<Record> nonauthRecords = new ArrayList<>();
-
     private long lastPoll = System.currentTimeMillis();
-
 
     public void begin() {
       if (mdnsVerbose || cacheVerbose) {
@@ -237,8 +237,8 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
     if (ifaceAddress != null) {
       multicastProcessors.add(new DatagramProcessor(ifaceAddress, address, port, this));
     } else {
-      Set<InetAddress> addresses = new HashSet<InetAddress>();
-      Set<String> MACs = new HashSet<String>();
+      Set<InetAddress> addresses = new HashSet<>();
+      Set<String> MACs = new HashSet<>();
       Enumeration<NetworkInterface> netIfaces = NetworkInterface.getNetworkInterfaces();
       while (netIfaces.hasMoreElements()) {
         NetworkInterface netIface = netIfaces.nextElement();
@@ -469,7 +469,18 @@ public class MulticastDNSMulticastOnlyQuerier implements Querier, PacketListener
             }
           });
 
-          Wait.forResponse(results);
+          CompletionStage<List<Message>> resultsCompletionStage = CompletableFutures.poll(
+              () -> CollectionUtils.isEmpty(results) ? Optional.empty() : Optional.of(results),
+              Duration.ofMillis(10), java.util.concurrent.Executors.newScheduledThreadPool(1));
+
+
+          try {
+            resultsCompletionStage.toCompletableFuture()
+                .get(Querier.DEFAULT_RESPONSE_WAIT_TIME, TimeUnit.MILLISECONDS);
+          } catch (Exception e) {
+            LOG.error("Error completing broadcast.", e);
+            throw new IOException(e);
+          }
 
           if (exceptions.size() > 0) {
             throw new IOException(exceptions.get(0));

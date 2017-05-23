@@ -1,5 +1,6 @@
 import java.net.InetAddress;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Lookup;
 import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
@@ -41,7 +42,7 @@ public class Tester {
         boolean hostnameResolves = false;
 
         Lookup lookup = new Lookup(fqn);
-        List<Record> rrs = lookup.lookupRecords();
+        List<Record> rrs = lookup.lookupRecords().toCompletableFuture().get();
         if (CollectionUtils.isNotEmpty(rrs)) {
           outer:
           for (Record rr : rrs) {
@@ -77,7 +78,7 @@ public class Tester {
         }
       }
 
-      if (service.unregister(registeredService)) {
+      if (service.unregister(registeredService).toCompletableFuture().get(1, TimeUnit.MINUTES)) {
         System.out.println("Services Successfully Unregistered: \n\t" + registeredService);
       } else {
         System.err.println("Services was not Unregistered: \n\t" + registeredService);

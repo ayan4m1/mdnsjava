@@ -106,7 +106,7 @@ public class dnssd {
               Lookup lookup = new Lookup(Constants.DEFAULT_REGISTRATION_DOMAIN_NAME,
                   Constants.REGISTRATION_DOMAIN_NAME);
               try {
-                domains = lookup.lookupDomains();
+                domains = lookup.lookupDomains().toCompletableFuture().get(1, TimeUnit.MINUTES);
               } finally {
                 lookup.close();
               }
@@ -121,7 +121,7 @@ public class dnssd {
               lookup = new Lookup(Constants.DEFAULT_BROWSE_DOMAIN_NAME,
                   Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
               try {
-                domains = lookup.lookupDomains();
+                domains = lookup.lookupDomains().toCompletableFuture().get(1, TimeUnit.MINUTES);;
               } finally {
                 lookup.close();
               }
@@ -143,7 +143,7 @@ public class dnssd {
                 lookup = new Lookup(Constants.DEFAULT_BROWSE_DOMAIN_NAME,
                     Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
                 try {
-                  domains = lookup.lookupDomains();
+                  domains = lookup.lookupDomains().toCompletableFuture().get(1, TimeUnit.MINUTES);;
                 } finally {
                   lookup.close();
                 }
@@ -225,7 +225,7 @@ public class dnssd {
                 lookup = new Lookup(Constants.DEFAULT_BROWSE_DOMAIN_NAME,
                     Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
                 try {
-                  domains = lookup.lookupDomains();
+                  domains = lookup.lookupDomains().toCompletableFuture().get(1, TimeUnit.MINUTES);;
                 } finally {
                   lookup.close();
                 }
@@ -257,7 +257,7 @@ public class dnssd {
               System.out.println("Services Found:");
               lookup = new Lookup(serviceTypes);
               try {
-                dnssd.printCollection(lookup.lookupServices(), "\t%s\n");
+                dnssd.printCollection(lookup.lookupServices().toCompletableFuture().get(1, TimeUnit.MINUTES), "\t%s\n");
               } finally {
                 lookup.close();
               }
@@ -310,7 +310,7 @@ public class dnssd {
               while (true) {
                 Thread.sleep(10);
                 if (System.in.read() == 'q') {
-                  if (mDNSService.unregister(registeredService)) {
+                  if (mDNSService.unregister(registeredService).toCompletableFuture().get(1, TimeUnit.MINUTES)) {
                     System.out.println("Services Successfully Unregistered: \n\t" + service);
                   } else {
                     System.err.println("Services Unregistration Failed!");
@@ -338,7 +338,7 @@ public class dnssd {
               ExecutionTimer._start();
               lookup = new Lookup(Collections.singletonList(new Name(args[1])), type, dclass);
               try {
-                records = lookup.lookupRecords();
+                records = lookup.lookupRecords().toCompletableFuture().get(1, TimeUnit.MINUTES);
                 System.out.println(
                     "Query Resource Records :\n\tName: " + args[1] + ", Type: " + Type.string(type)
                         + ", DClass: " + DClass.string(dclass));
@@ -378,7 +378,7 @@ public class dnssd {
               }
               lookup = new Lookup(names, type, dclass);
               try {
-                records = lookup.lookupRecords();
+                records = lookup.lookupRecords().toCompletableFuture().get(1, TimeUnit.MINUTES);
               } finally {
                 lookup.close();
               }

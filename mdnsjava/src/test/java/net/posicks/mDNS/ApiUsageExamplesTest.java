@@ -5,6 +5,7 @@ import static org.junit.Assert.fail;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import net.posick.mDNS.Browse;
 import net.posick.mDNS.Constants;
 import net.posick.mDNS.DNSSDListener;
@@ -15,6 +16,8 @@ import net.posick.mDNS.MulticastDNSService;
 import net.posick.mDNS.ServiceInstance;
 import net.posick.mDNS.ServiceName;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xbill.DNS.DClass;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.Name;
@@ -34,7 +37,10 @@ import org.xbill.DNS.Type;
 public class ApiUsageExamplesTest {
 
   private static final String SERVICE_NAME = "Test._org.smpte.st2071.device:device_v1.0._sub._mdc._tcp";
+  //private static final String SERVICE_NAME = "_http._tcp";
 
+
+  private static final Logger LOG = LoggerFactory.getLogger(ApiUsageExamplesTest.class);
 
   /**
    * Lookup the registered Browse and Registration Domains RFC 6263 Section 11 using the default DNS
@@ -47,7 +53,7 @@ public class ApiUsageExamplesTest {
         Constants.REGISTRATION_DOMAIN_NAME, Constants.DEFAULT_BROWSE_DOMAIN_NAME,
         Constants.BROWSE_DOMAIN_NAME, Constants.LEGACY_BROWSE_DOMAIN_NAME);
 
-    Set<Domain> domains = lookup.lookupDomains();
+    Set<Domain> domains = lookup.lookupDomains().toCompletableFuture().get();
     for (Lookup.Domain domain : domains) {
       System.out.println(domain);
     }
@@ -67,7 +73,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(serviceName);
-      List<ServiceInstance> services = lookup.lookupServices();
+      List<ServiceInstance> services = lookup.lookupServices().toCompletableFuture().get();
       for (ServiceInstance service : services) {
         System.out.println(service);
       }
@@ -132,7 +138,7 @@ public class ApiUsageExamplesTest {
     Lookup lookup = null;
     try {
       lookup = new Lookup(SERVICE_NAME, Type.ANY, DClass.IN);
-      List<Record> records = lookup.lookupRecords();
+      List<Record> records = lookup.lookupRecords().toCompletableFuture().get();
       for (Record record : records) {
         System.out.println(record);
       }
@@ -193,7 +199,7 @@ public class ApiUsageExamplesTest {
       fail("Services Registration Failed!");
     }
 
-    if (mDNSService.unregister(serviceName)) {
+    if (mDNSService.unregister(serviceName).toCompletableFuture().get()) {
       System.out.println("Services Successfully Unregistered: \n\t" + serviceName);
     } else {
       System.err.println("Services Unregistration Failed!");
