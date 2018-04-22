@@ -7,7 +7,10 @@
   <groupId>net.posick</groupId>
   <artifactId>mdnsjava</artifactId>
   <name>mDNS for Java</name>
-  <version>2.20</version>
+  <description>
+    Multicast DNS (mDNS) [RFC 6762] &amp; DNS-Based Service Discovery (DNS-SD) [RFC6763] in Java http://posicks.github.io/mdnsjava/
+  </description>
+  <version>2.2.0-SNAPSHOT</version>
 
   <packaging>jar</packaging>
 
@@ -141,4 +144,18 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <slf4j.version>1.7.25</slf4j.version>
   </properties>
+
+  <scm>
+    <url>https://github.com/ayan4m1/mdnsjava</url>
+    <connection>scm:git:git://github.com:ayan4m1/mdnsjava.git</connection>
+    <developerConnection>scm:git:git@github.com:ayan4m1/mdnsjava.git</developerConnection>
+  </scm>
+
+  <developers>
+    <developer>
+      <id>cjhawley</id>
+      <name>Chris Hawley</name>
+      <url>https://chrishawley.io/</url>
+    </developer>
+  </developers>
 </project>
